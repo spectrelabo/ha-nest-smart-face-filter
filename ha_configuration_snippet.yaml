@@ -1,0 +1,50 @@
+# ==============================================================================
+# CONFIGURAZIONE HOME ASSISTANT PER FACE RECOGNITION (GOOGLE NEST)
+# ==============================================================================
+# Copia le sezioni seguenti nei file di configurazione di Home Assistant
+# (configuration.yaml / automations.yaml)
+
+# ------------------------------------------------------------------------------
+# 1. SHELL COMMAND DEFINITION (Appendere a configuration.yaml)
+# ------------------------------------------------------------------------------
+shell_command:
+  process_face_recognition: "python3 /config/face_recognition/analyze.py"
+
+# ------------------------------------------------------------------------------
+# 2. AUTOMATION: Trigger Persona + Snapshot + Riconoscimento (automations.yaml)
+# ------------------------------------------------------------------------------
+automation:
+  - id: nest_camera_face_recognition_pipeline
+    alias: "Nest Camera - Pipeline Riconoscimento Facciale Leggera"
+    description: "Cattura uno snapshot quando la telecamera Nest rileva una persona ed esegue il riconoscimento facciale con InsightFace ONNX."
+    mode: single
+    max_exceeded: silent
+    trigger:
+      - platform: state
+        entity_id: binary_sensor.camera_ballatoio_person_detected
+        to: "on"
+    action:
+      - service: camera.snapshot
+        target:
+          entity_id: camera.camera_ballatoio
+        data:
+          filename: "/config/www/snapshots/last_person.jpg"
+      
+      - service: shell_command.process_face_recognition
+
+# ------------------------------------------------------------------------------
+# 3. AUTOMATION OPZIONALE: Notifica Persona Sconosciuta (automations.yaml)
+# ------------------------------------------------------------------------------
+  - id: notify_on_unknown_person_detected
+    alias: "Sicurezza - Notifica Persona Sconosciuta Rilevata"
+    description: "Invia una notifica push quando lo script rileva un volto sconosciuto."
+    trigger:
+      - platform: event
+        event_type: unknown_person_detected
+    action:
+      - service: notify.notify
+        data:
+          title: "⚠️ Persona Sconosciuta Rilevata!"
+          message: "È stato rilevato un volto sconosciuto sulla telecamera del ballatoio. Score: {{ trigger.event.data.score }}"
+          data:
+            image: "/local/snapshots/last_person.jpg"

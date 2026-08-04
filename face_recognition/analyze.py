@@ -1,0 +1,172 @@
+#!/usr/bin/env python3
+"""
+analyze.py - Script event-driven per il riconoscimento facciale leggero.
+
+Carica in RAM gli embedding noti (.npy), analizza lo snapshot inviato da Home Assistant
+e calcola la Cosine Similarity. Se la corrispondenza è inferiore a THRESHOLD = 0.45,
+invia un evento/notifica a Home Assistant via REST API.
+"""
+
+import os
+import sys
+import time
+from pathlib import Path
+import numpy as np
+import cv2
+import requests
+
+try:
+    import insightface
+    from insightface.app import FaceAnalysis
+except ImportError:
+    print("[ERROR] Dipendenza 'insightface' mancante. Installa con: pip install insightface onnxruntime opencv-python-headless numpy requests", file=sys.stderr)
+    sys.exit(1)
+
+# Configurazione predefinita
+EMBEDDINGS_DIR = os.getenv("EMBEDDINGS_DIR", "/config/face_recognition/embeddings")
+SNAPSHOT_PATH = os.getenv("SNAPSHOT_PATH", "/config/www/snapshots/last_person.jpg")
+THRESHOLD = float(os.getenv("THRESHOLD", "0.45"))
+
+# Configurazione Home Assistant REST API
+HA_URL = os.getenv("SUPERVISOR_TOKEN", None)  # HA Supervisor REST Endpoint
+HA_BASE_URL = os.getenv("HA_BASE_URL", "http://supervisor/core")
+HA_BEARER_TOKEN = os.getenv("SUPERVISOR_TOKEN") or os.getenv("HA_ACCESS_TOKEN", "")
+
+
+def load_known_embeddings(embeddings_dir: Path) -> dict:
+    """Carica in RAM tutti i file .npy presenti nella directory specificata."""
+    known_faces = {}
+    if not embeddings_dir.exists():
+        print(f"[WARNING] Directory embedding non trovata: {embeddings_dir}")
+        return known_faces
+
+    for npy_file in embeddings_dir.glob("*.npy"):
+        try:
+            emb = np.load(npy_file)
+            # Assicura che l'embedding sia normalizzato (L2 norm)
+            emb = emb / np.linalg.norm(emb)
+            identity = npy_file.stem
+            known_faces[identity] = emb
+        except Exception as e:
+            print(f"[ERROR] Impossibile caricare {npy_file}: {e}", file=sys.stderr)
+
+    return known_faces
+
+
+def cosine_similarity(emb1: np.ndarray, emb2: np.ndarray) -> float:
+    """Calcola la cosine similarity tra due vettori normalizzati."""
+    dot_product = np.dot(emb1, emb2)
+    norm1 = np.linalg.norm(emb1)
+    norm2 = np.linalg.norm(emb2)
+    if norm1 == 0 or norm2 == 0:
+        return 0.0
+    return float(dot_product / (norm1 * norm2))
+
+
+def notify_home_assistant(event_name: str, payload: dict):
+    """Invia un evento personalizzato a Home Assistant via REST API."""
+    if not HA_BEARER_TOKEN:
+        print("[INFO] Nessun token HA configurato (SUPERVISOR_TOKEN/HA_ACCESS_TOKEN). Notifica via API ignorata.")
+        return
+
+    url = f"{HA_BASE_URL}/api/events/{event_name}"
+    headers = {
+        "Authorization": f"Bearer {HA_BEARER_TOKEN}",
+        "Content-Type": "application/json",
+    }
+    try:
+        response = requests.post(url, json=payload, headers=headers, timeout=5)
+        if response.status_code in (200, 201):
+            print(f"[SUCCESS] Evento '{event_name}' inviato a Home Assistant (status: {response.status_code}).")
+        else:
+            print(f"[WARNING] Risposta HA API non prevista ({response.status_code}): {response.text}")
+    except Exception as e:
+        print(f"[ERROR] Impossibile inviare evento a Home Assistant: {e}", file=sys.stderr)
+
+
+def main():
+    start_time = time.perf_counter()
+    print("=== [FACE RECONSTRUCTION PIPELINE] Esecuzione Analisi ===")
+
+    embeddings_path = Path(EMBEDDINGS_DIR)
+    snapshot_file = Path(SNAPSHOT_PATH)
+
+    # 1. Carica volti noti in RAM
+    known_faces = load_known_embeddings(embeddings_path)
+    print(f"[INFO] Volti noti caricati in RAM: {len(known_faces)} ({list(known_faces.keys())})")
+
+    # 2. Verifica presenza snapshot
+    if not snapshot_file.is_file():
+        print(f"[ERROR] Snapshot non trovato: {snapshot_file}", file=sys.stderr)
+        elapsed_ms = (time.perf_counter() - start_time) * 1000
+        print(f"[METRICS] Execution time: {elapsed_ms:.2f} ms")
+        sys.exit(1)
+
+    # 3. Inizializzazione InsightFace
+    init_start = time.perf_counter()
+    app = FaceAnalysis(name="buffalo_s", providers=["CPUExecutionProvider"])
+    app.prepare(ctx_id=0, det_size=(640, 640))
+    init_ms = (time.perf_counter() - init_start) * 1000
+
+    # 4. Decodifica immagine
+    img = cv2.imread(str(snapshot_file))
+    if img is None:
+        print(f"[ERROR] Impossibile leggere lo snapshot con OpenCV: {snapshot_file}", file=sys.stderr)
+        elapsed_ms = (time.perf_counter() - start_time) * 1000
+        print(f"[METRICS] Execution time: {elapsed_ms:.2f} ms")
+        sys.exit(1)
+
+    # 5. Face Detection & Feature Extraction
+    infer_start = time.perf_counter()
+    faces = app.get(img)
+    infer_ms = (time.perf_counter() - infer_start) * 1000
+
+    if not faces:
+        print(f"[WARNING] Nessun volto rilevato nello snapshot {snapshot_file}.")
+        notify_home_assistant("no_face_detected", {
+            "snapshot_path": str(snapshot_file),
+            "message": "Persona rilevata da Nest ma nessun volto estraibile dallo snapshot."
+        })
+        elapsed_ms = (time.perf_counter() - start_time) * 1000
+        print(f"[METRICS] Detection: {infer_ms:.2f} ms | Total Execution Time: {elapsed_ms:.2f} ms")
+        return
+
+    # 6. Confronto embeddings (Cosine Similarity)
+    match_found = False
+    best_identity = None
+    best_score = -1.0
+
+    for face in faces:
+        detected_emb = face.normed_embedding
+
+        for identity, known_emb in known_faces.items():
+            score = cosine_similarity(detected_emb, known_emb)
+            if score > best_score:
+                best_score = score
+                best_identity = identity
+
+    print(f"[RESULT] Miglior match: '{best_identity}' con punteggio similarity = {best_score:.4f} (Threshold = {THRESHOLD})")
+
+    if best_score >= THRESHOLD:
+        match_found = True
+        print(f"[SUCCESS] Volto RICONOSCIUTO: {best_identity} ({best_score * 100:.1f}% confidence)")
+        notify_home_assistant("known_person_detected", {
+            "identity": best_identity,
+            "confidence": round(best_score, 4),
+            "snapshot_path": str(snapshot_file)
+        })
+    else:
+        print(f"[ALERT] Volto SCONOSCIUTO! Corrispondenza massima {best_score:.4f} sotto la soglia {THRESHOLD}.")
+        notify_home_assistant("unknown_person_detected", {
+            "highest_match": best_identity if best_identity else "none",
+            "score": round(best_score, 4),
+            "threshold": THRESHOLD,
+            "snapshot_path": str(snapshot_file)
+        })
+
+    total_ms = (time.perf_counter() - start_time) * 1000
+    print(f"[METRICS] Init: {init_ms:.2f} ms | Inference: {infer_ms:.2f} ms | Total Time: {total_ms:.2f} ms")
+
+
+if __name__ == "__main__":
+    main()
