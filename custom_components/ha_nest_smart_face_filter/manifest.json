@@ -1,0 +1,17 @@
+{
+  "domain": "ha_nest_smart_face_filter",
+  "name": "HA Nest Smart Face Filter",
+  "codeowners": ["@Blueskies360"],
+  "config_flow": true,
+  "documentation": "https://github.com/spectrelabo/ha-nest-smart-face-filter",
+  "integration_type": "service",
+  "iot_class": "local_push",
+  "issue_tracker": "https://github.com/spectrelabo/ha-nest-smart-face-filter/issues",
+  "requirements": [
+    "insightface>=0.7.3",
+    "onnxruntime>=1.15.0",
+    "opencv-python-headless>=4.8.0",
+    "numpy>=1.23.0"
+  ],
+  "version": "1.0.0"
+}
