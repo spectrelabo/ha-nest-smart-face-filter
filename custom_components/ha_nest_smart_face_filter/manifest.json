@@ -1,7 +1,7 @@
 {
   "domain": "ha_nest_smart_face_filter",
   "name": "HA Nest Smart Face Filter",
-  "codeowners": ["@Blueskies360"],
+  "codeowners": ["@spectrelabo"],
   "config_flow": true,
   "documentation": "https://github.com/spectrelabo/ha-nest-smart-face-filter",
   "integration_type": "service",
