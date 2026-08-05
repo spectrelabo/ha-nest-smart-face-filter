@@ -2,6 +2,10 @@
 
 > Kill the Notification Fatigue. Event-driven, ultra-lightweight (<200MB RAM) face recognition for Google Nest & Home Assistant. Stop getting alerted every time your neighbour walks by.
 
+[![hacs_badge](https://img.shields.io/badge/HACS-Custom-41BDF5.svg)](https://github.com/hacs/default)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Python Version](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/)
+
 ---
 
 ## The Problem & The Fix
@@ -220,10 +224,10 @@ READ THIS: I AM NOT A LAWYER.
 
 ## Support the Project
 
-If this project saved your sanity from constant notification noise, consider supporting maintenance:
+If this project saved your sanity from constant notification noise, consider supporting:
 
-- Donate via PayPal: https://paypal.me
-- Buy Me a Coffee: https://buymeacoffee.com
+[![PayPal](https://img.shields.io/badge/Donate-PayPal-00457C?style=for-the-badge&logo=paypal&logoColor=white)](https://paypal.me)
+[![Buy Me A Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-ffdd00?style=for-the-badge&logo=buy-me-a-coffee&logoColor=black)](https://buymeacoffee.com)
 
 ---
-*Built for999% local privacy, zero bloat, and peace of mind.*
+*Built for 100% local privacy, zero bloat, and peace of mind.*
