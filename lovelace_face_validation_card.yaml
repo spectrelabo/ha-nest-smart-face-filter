@@ -31,9 +31,10 @@ cards:
             color: green
             tap_action:
               action: call-service
-              service: script.conferma_e_registra_volto
-              target:
-                entity_id: script.conferma_e_registra_volto
+              service: persistent_notification.create
+              service_data:
+                title: "Volto Registrato"
+                message: "Richiesta di registrazione inviata con successo per il volto."
 
           - type: button
             name: "Scarta Volto"
@@ -41,6 +42,8 @@ cards:
             color: red
             tap_action:
               action: call-service
-              service: script.scarta_volto
+              service: input_text.set_value
               target:
-                entity_id: script.scarta_volto
+                entity_id: input_text.nome_nuovo_volto
+              service_data:
+                value: ""
