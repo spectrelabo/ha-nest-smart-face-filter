@@ -1,22 +1,32 @@
 # ==============================================================================
-# CONFIGURAZIONE HOME ASSISTANT PER FACE RECOGNITION (GOOGLE NEST)
+# CONFIGURAZIONE HOME ASSISTANT PER FACE RECOGNITION (VALIDAZIONE INTERATTIVA)
 # ==============================================================================
 # Copia le sezioni seguenti nei file di configurazione di Home Assistant
-# (configuration.yaml / automations.yaml)
+# (configuration.yaml / automations.yaml / input_text.yaml)
 
 # ------------------------------------------------------------------------------
-# 1. SHELL COMMAND DEFINITION (Appendere a configuration.yaml)
+# 1. HELPER NOME NUOVO VOLTO (configuration.yaml)
+# ------------------------------------------------------------------------------
+input_text:
+  nome_nuovo_volto:
+    name: "Nome Nuovo Volto da Registrare"
+    initial: ""
+    icon: mdi:account-plus
+
+# ------------------------------------------------------------------------------
+# 2. SHELL COMMAND DEFINITION (configuration.yaml)
 # ------------------------------------------------------------------------------
 shell_command:
   process_face_recognition: "python3 /config/face_recognition/analyze.py"
+  learn_latest_face: "python3 /config/face_recognition/learn_face.py --latest --name '{{ name }}'"
 
 # ------------------------------------------------------------------------------
-# 2. AUTOMATION: Trigger Persona + Snapshot + Riconoscimento (automations.yaml)
+# 3. AUTOMATION: Trigger Telecamera Nest + Snapshot + Riconoscimento
 # ------------------------------------------------------------------------------
 automation:
   - id: nest_camera_face_recognition_pipeline
     alias: "Nest Camera - Pipeline Riconoscimento Facciale Leggera"
-    description: "Cattura uno snapshot quando la telecamera Nest rileva una persona ed esegue il riconoscimento facciale con InsightFace ONNX."
+    description: "Cattura uno snapshot quando la telecamera Nest rileva una persona ed esegue l'analisi."
     mode: single
     max_exceeded: silent
     trigger:
@@ -33,11 +43,11 @@ automation:
       - service: shell_command.process_face_recognition
 
 # ------------------------------------------------------------------------------
-# 3. AUTOMATION OPZIONALE: Notifica Persona Sconosciuta (automations.yaml)
+# 4. NOTIFICA AZIONABILE: Notifica Persona Sconosciuta con Pulsanti di Validazione
 # ------------------------------------------------------------------------------
-  - id: notify_on_unknown_person_detected
-    alias: "Sicurezza - Notifica Persona Sconosciuta Rilevata"
-    description: "Invia una notifica push quando lo script rileva un volto sconosciuto."
+  - id: notify_on_unknown_person_detected_actionable
+    alias: "Sicurezza - Notifica Azionabile Persona Sconosciuta"
+    description: "Invia una notifica con pulsanti interattivi per decidere se registrare o ignorare il volto sconosciuto."
     trigger:
       - platform: event
         event_type: unknown_person_detected
@@ -45,6 +55,28 @@ automation:
       - service: notify.notify
         data:
           title: "⚠️ Persona Sconosciuta Rilevata!"
-          message: "È stato rilevato un volto sconosciuto sulla telecamera del ballatoio. Score: {{ trigger.event.data.score }}"
+          message: "Rilevato volto sconosciuto sulla telecamera. Vuoi registrarlo tra i volti noti?"
           data:
             image: "/local/snapshots/last_person.jpg"
+            actions:
+              - action: "LEARN_FACE_ACTION"
+                title: "👤 Registra Volto"
+              - action: "DISMISS_FACE_ACTION"
+                title: "🚫 Ignora"
+
+# ------------------------------------------------------------------------------
+# 5. GESTIONE VALIDAZIONE: Risposta al Pulsante "Registra Volto"
+# ------------------------------------------------------------------------------
+  - id: handle_learn_face_notification_action
+    alias: "Sicurezza - Registrazione Volto da Notifica"
+    description: "Esegue l'apprendimento del volto quando l'utente preme 'Registra Volto'."
+    trigger:
+      - platform: event
+        event_type: mobile_app_notification_action
+        event_data:
+          action: "LEARN_FACE_ACTION"
+    action:
+      - service: persistent_notification.create
+        data:
+          title: "👤 Validazione Volto Richiesta"
+          message: "Inserisci il nome del nuovo volto nel campo 'input_text.nome_nuovo_volto' sulla tua Dashboard per confermare l'acquisizione."
