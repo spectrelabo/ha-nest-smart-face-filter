@@ -163,7 +163,21 @@ def main():
         print(f"[METRICS] Detection: {infer_ms:.2f} ms | Total Execution Time: {elapsed_ms:.2f} ms")
         return
 
-    # 6. Confronto embeddings (Cosine Similarity)
+    # 6. Crop del volto per l'anteprima zoomed-in nella notifica
+    best_face_obj = max(faces, key=lambda f: (f.bbox[2] - f.bbox[0]) * (f.bbox[3] - f.bbox[1]))
+    bbox = [int(b) for b in best_face_obj.bbox]
+    h, w, _ = img.shape
+    pad_w = int((bbox[2] - bbox[0]) * 0.25)
+    pad_h = int((bbox[3] - bbox[1]) * 0.25)
+    x1, y1 = max(0, bbox[0] - pad_w), max(0, bbox[1] - pad_h)
+    x2, y2 = min(w, bbox[2] + pad_w), min(h, bbox[3] + pad_h)
+    crop_img = img[y1:y2, x1:x2]
+    
+    crop_path = Path("/config/www/snapshots/last_face_crop.jpg")
+    crop_path.parent.mkdir(parents=True, exist_ok=True)
+    cv2.imwrite(str(crop_path), crop_img)
+
+    # 7. Confronto embeddings (Cosine Similarity)
     match_found = False
     best_identity = None
     best_score = -1.0
@@ -185,7 +199,8 @@ def main():
         notify_home_assistant("known_person_detected", {
             "identity": best_identity,
             "confidence": round(best_score, 4),
-            "snapshot_path": str(snapshot_file)
+            "snapshot_path": str(snapshot_file),
+            "face_crop_path": "/local/snapshots/last_face_crop.jpg"
         })
     else:
         print(f"[ALERT] Volto SCONOSCIUTO! Corrispondenza massima {best_score:.4f} sotto la soglia {THRESHOLD}.")
@@ -194,7 +209,8 @@ def main():
             "highest_match": best_identity if best_identity else "none",
             "score": round(best_score, 4),
             "threshold": THRESHOLD,
-            "snapshot_path": str(snapshot_file)
+            "snapshot_path": str(snapshot_file),
+            "face_crop_path": "/local/snapshots/last_face_crop.jpg"
         })
 
     total_ms = (time.perf_counter() - start_time) * 1000
