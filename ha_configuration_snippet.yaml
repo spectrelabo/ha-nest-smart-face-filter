@@ -31,14 +31,15 @@ automation:
     max_exceeded: silent
     trigger:
       - platform: state
-        entity_id: binary_sensor.camera_ballatoio_person_detected
-        to: "on"
+        entity_id: event.campanello_porta_principale_motion
+        attribute: event_type
+        to: "camera_person"
     action:
       - service: camera.snapshot
         target:
-          entity_id: camera.camera_ballatoio
+          entity_id: camera.campanello_porta_principale
         data:
-          filename: "/config/www/snapshots/last_person.jpg"
+          filename: "/config/www/last_person.jpg"
       
       - service: shell_command.process_face_recognition
 
