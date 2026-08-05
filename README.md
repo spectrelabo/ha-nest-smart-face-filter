@@ -7,7 +7,7 @@
 ![Python](https://img.shields.io/badge/Python-3.9%2B-green)
 ![ONNX Runtime](https://img.shields.io/badge/ONNXRuntime-CPU-orange)
 [![PayPal](https://img.shields.io/badge/Donate-PayPal-00457C?style=flat-square&logo=paypal&logoColor=white)](https://paypal.me)
-[![Buy Me A Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-ffdd00?style=flat-square&logo=buy-me-a-coffee&logoColor=black)](https://buymeacoffee.com)
+[![Buy Me A Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-ffdd00?style=flat-square&logo=buy-me-a-coffee&logoColor=black)](buymeacoffee.com/blueskies360)
 
 ---
 
