@@ -2,29 +2,51 @@ title: "Riconoscimento Facciale - Nest"
 icon: mdi:face-recognition
 path: face-recognition
 cards:
-  - type: picture
-    image: /local/snapshots/last_face_crop.jpg
-    title: "Anteprima Volto Rilevato"
+  # CARD 1: Quando C'è un volto in attesa (input_boolean.volto_in_attesa == 'on')
+  - type: conditional
+    conditions:
+      - entity: input_boolean.volto_in_attesa
+        state: "on"
+    card:
+      type: vertical-stack
+      title: "Validazione Volto Rilevato"
+      cards:
+        - type: picture
+          image: /local/snapshots/last_face_crop.jpg
+          title: "Anteprima Volto Rilevato"
 
-  - type: entities
-    title: "Pannello di Validazione"
-    entities:
-      - entity: input_text.nome_nuovo_volto
-        name: "Nome del Volto da Registrare"
-        icon: mdi:account-edit
+        - type: entities
+          title: "Pannello di Validazione"
+          entities:
+            - entity: input_text.nome_nuovo_volto
+              name: "Nome del Volto da Registrare"
+              icon: mdi:account-edit
 
-      - type: button
-        name: "Conferma e Registra Volto"
-        icon: mdi:account-check
-        action_name: "CONFERMA E HOME"
-        tap_action:
-          action: navigate
-          navigation_path: "/lovelace/0"
+            - type: button
+              name: "Conferma e Registra Volto"
+              icon: mdi:account-check
+              action_name: "CONFERMA"
+              tap_action:
+                action: call-service
+                service: script.conferma_gestione_volto
 
-      - type: button
-        name: "Scarta Volto Sconosciuto"
-        icon: mdi:delete-outline
-        action_name: "SCARTA E HOME"
-        tap_action:
-          action: navigate
-          navigation_path: "/lovelace/0"
+            - type: button
+              name: "Scarta Volto Sconosciuto"
+              icon: mdi:delete-outline
+              action_name: "SCARTA"
+              tap_action:
+                action: call-service
+                service: script.scarta_gestione_volto
+
+  # CARD 2: Quando NON ci sono volti in attesa (input_boolean.volto_in_attesa == 'off')
+  - type: conditional
+    conditions:
+      - entity: input_boolean.volto_in_attesa
+        state: "off"
+    card:
+      type: markdown
+      title: "Sistema di Riconoscimento Attivo"
+      content: |
+        ### Nessun volto in attesa di validazione
+
+        Tutti i rilevamenti sono stati gestiti. Quando la telecamera rilevera un nuovo volto sconosciuto, comparira qui la scheda per la registrazione.
