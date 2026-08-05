@@ -25,24 +25,22 @@ cards:
         - type: horizontal-stack
           cards:
             - type: button
+              entity: input_boolean.volto_in_attesa
               name: "Conferma e Registra"
               icon: mdi:account-check
+              show_state: false
               color: green
               tap_action:
-                action: call-service
-                service: input_boolean.turn_off
-                service_data:
-                  entity_id: input_boolean.volto_in_attesa
+                action: toggle
 
             - type: button
+              entity: input_boolean.volto_in_attesa
               name: "Scarta Volto"
               icon: mdi:delete-outline
+              show_state: false
               color: red
               tap_action:
-                action: call-service
-                service: input_boolean.turn_off
-                service_data:
-                  entity_id: input_boolean.volto_in_attesa
+                action: toggle
 
   # CARD 2: Quando NON ci sono volti in attesa (input_boolean.volto_in_attesa == 'off')
   - type: conditional
