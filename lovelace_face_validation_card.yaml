@@ -31,11 +31,9 @@ cards:
             color: green
             tap_action:
               action: call-service
-              service: shell_command.learn_latest_face
-              service_data:
-                name: "{{ states('input_text.nome_nuovo_volto') }}"
-              confirmation:
-                text: "Vuoi registrare questo volto tra i volti noti?"
+              service: script.conferma_e_registra_volto
+              target:
+                entity_id: script.conferma_e_registra_volto
 
           - type: button
             name: "Scarta Volto"
@@ -43,7 +41,6 @@ cards:
             color: red
             tap_action:
               action: call-service
-              service: persistent_notification.create
-              service_data:
-                title: "Volto Scartato"
-                message: "Lo snapshot e stato scartato e non verra salvato tra i volti noti."
+              service: script.scarta_volto
+              target:
+                entity_id: script.scarta_volto
