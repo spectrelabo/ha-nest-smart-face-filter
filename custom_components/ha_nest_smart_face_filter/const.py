@@ -8,7 +8,7 @@ CONF_SNAPSHOT_PATH = "snapshot_path"
 CONF_THRESHOLD = "threshold"
 
 DEFAULT_EMBEDDINGS_DIR = "/config/face_recognition/embeddings"
-DEFAULT_SNAPSHOT_PATH = "/config/www/snapshots/last_person.jpg"
+DEFAULT_SNAPSHOT_PATH = "/config/www/last_person.jpg"
 DEFAULT_THRESHOLD = 0.45
 
 EVENT_UNKNOWN_PERSON_DETECTED = "unknown_person_detected"
