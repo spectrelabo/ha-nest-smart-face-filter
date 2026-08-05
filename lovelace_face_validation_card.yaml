@@ -31,7 +31,7 @@ cards:
               tap_action:
                 action: call-service
                 service: input_boolean.turn_off
-                target:
+                service_data:
                   entity_id: input_boolean.volto_in_attesa
 
             - type: button
@@ -41,7 +41,7 @@ cards:
               tap_action:
                 action: call-service
                 service: input_boolean.turn_off
-                target:
+                service_data:
                   entity_id: input_boolean.volto_in_attesa
 
   # CARD 2: Quando NON ci sono volti in attesa (input_boolean.volto_in_attesa == 'off')
