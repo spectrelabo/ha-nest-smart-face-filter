@@ -4,12 +4,14 @@ analyze.py - Script event-driven per il riconoscimento facciale leggero.
 
 Carica in RAM gli embedding noti (.npy), analizza lo snapshot inviato da Home Assistant
 e calcola la Cosine Similarity. Se la corrispondenza è inferiore a THRESHOLD = 0.45,
-invia un evento/notifica a Home Assistant via REST API.
+invia un evento/notifica a Home Assistant e archivia lo snapshot per l'acquisizione di nuovi volti.
 """
 
 import os
 import sys
 import time
+import shutil
+from datetime import datetime
 from pathlib import Path
 import numpy as np
 import cv2
@@ -26,6 +28,9 @@ except ImportError:
 EMBEDDINGS_DIR = os.getenv("EMBEDDINGS_DIR", "/config/face_recognition/embeddings")
 SNAPSHOT_PATH = os.getenv("SNAPSHOT_PATH", "/config/www/snapshots/last_person.jpg")
 THRESHOLD = float(os.getenv("THRESHOLD", "0.45"))
+SAVE_UNKNOWN_FACES = os.getenv("SAVE_UNKNOWN_FACES", "true").lower() == "true"
+UNKNOWN_FACES_DIR = os.getenv("UNKNOWN_FACES_DIR", "/config/face_recognition/unknown_faces")
+MAX_SAVED_FACES = int(os.getenv("MAX_SAVED_FACES", "30"))
 
 # Configurazione Home Assistant REST API
 HA_URL = os.getenv("SUPERVISOR_TOKEN", None)  # HA Supervisor REST Endpoint
@@ -43,7 +48,6 @@ def load_known_embeddings(embeddings_dir: Path) -> dict:
     for npy_file in embeddings_dir.glob("*.npy"):
         try:
             emb = np.load(npy_file)
-            # Assicura che l'embedding sia normalizzato (L2 norm)
             emb = emb / np.linalg.norm(emb)
             identity = npy_file.stem
             known_faces[identity] = emb
@@ -63,10 +67,38 @@ def cosine_similarity(emb1: np.ndarray, emb2: np.ndarray) -> float:
     return float(dot_product / (norm1 * norm2))
 
 
+def archive_unknown_face(snapshot_file: Path):
+    """Archivia lo snapshot del volto sconosciuto per consentire l'acquisizione di nuovi volti."""
+    if not SAVE_UNKNOWN_FACES:
+        return
+
+    unknown_dir = Path(UNKNOWN_FACES_DIR)
+    unknown_dir.mkdir(parents=True, exist_ok=True)
+
+    timestamp_str = datetime.now().strftime("%Y%m%d_%H%M%S")
+    dest_file = unknown_dir / f"unknown_{timestamp_str}.jpg"
+
+    try:
+        shutil.copy(snapshot_file, dest_file)
+        print(f"[INFO] Snapshot archiviato in: {dest_file} (utilizzabile per apprendere un nuovo volto).")
+
+        # Gestione mantenimento massimo N immagini (Auto-pruning)
+        saved_files = sorted(unknown_dir.glob("unknown_*.jpg"), key=os.path.getmtime)
+        if len(saved_files) > MAX_SAVED_FACES:
+            for old_file in saved_files[:-MAX_SAVED_FACES]:
+                try:
+                    old_file.unlink()
+                    print(f"[CLEANUP] Rimosso vecchio snapshot archiviato: {old_file.name}")
+                except Exception as e:
+                    print(f"[WARNING] Impossibile rimuovere {old_file}: {e}")
+    except Exception as e:
+        print(f"[ERROR] Errore durante l'archiviazione dello snapshot: {e}", file=sys.stderr)
+
+
 def notify_home_assistant(event_name: str, payload: dict):
     """Invia un evento personalizzato a Home Assistant via REST API."""
     if not HA_BEARER_TOKEN:
-        print("[INFO] Nessun token HA configurato (SUPERVISOR_TOKEN/HA_ACCESS_TOKEN). Notifica via API ignorata.")
+        print("[INFO] Nessun token HA configurato. Notifica via API ignorata.")
         return
 
     url = f"{HA_BASE_URL}/api/events/{event_name}"
@@ -157,6 +189,7 @@ def main():
         })
     else:
         print(f"[ALERT] Volto SCONOSCIUTO! Corrispondenza massima {best_score:.4f} sotto la soglia {THRESHOLD}.")
+        archive_unknown_face(snapshot_file)
         notify_home_assistant("unknown_person_detected", {
             "highest_match": best_identity if best_identity else "none",
             "score": round(best_score, 4),
