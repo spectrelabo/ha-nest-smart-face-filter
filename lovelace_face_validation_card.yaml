@@ -16,21 +16,15 @@ cards:
       - type: button
         name: "Conferma e Registra Volto"
         icon: mdi:account-check
-        action_name: "CONFERMA"
+        action_name: "CONFERMA E HOME"
         tap_action:
-          action: call-service
-          service: notify.mobile_app_iphone_di_alessio
-          service_data:
-            title: "Volto Registrato"
-            message: "Il nuovo volto e stato registrato con successo tra i volti noti."
+          action: navigate
+          navigation_path: "/lovelace/0"
 
       - type: button
         name: "Scarta Volto Sconosciuto"
         icon: mdi:delete-outline
-        action_name: "SCARTA"
+        action_name: "SCARTA E HOME"
         tap_action:
-          action: call-service
-          service: notify.mobile_app_iphone_di_alessio
-          service_data:
-            title: "Volto Scartato"
-            message: "Lo snapshot del volto e stato scartato."
+          action: navigate
+          navigation_path: "/lovelace/0"
