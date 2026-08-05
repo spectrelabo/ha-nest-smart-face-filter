@@ -1,0 +1,51 @@
+# ==============================================================================
+# DASHBOARD CARD DEDICATA: GESTIONE & VALIDAZIONE VOLTI (LOVELACE)
+# ==============================================================================
+# Aggiungi questa scheda (o nuova vista) nella tua dashboard di Home Assistant
+# Percorso raccomandato vista: /lovelace/face-recognition
+
+title: "Riconoscimento Facciale - Nest"
+icon: mdi:face-recognition
+path: face-recognition
+cards:
+  - type: vertical-stack
+    title: "🔍 Validazione Volto Rilevato"
+    cards:
+      # 1. Immagine del Volto Ingrandito
+      - type: picture
+        image: /local/snapshots/last_face_crop.jpg
+        title: "Anteprima Volto Rilevato"
+        aspect_ratio: "1x1"
+
+      # 2. Informazioni e Stato
+      - type: entities
+        entities:
+          - entity: input_text.nome_nuovo_volto
+            name: "Nome del Volto da Registrare"
+            icon: mdi:account-edit
+
+      # 3. Pulsanti Azione (Conferma o Scarta)
+      - type: horizontal-stack
+        cards:
+          - type: button
+            name: "👤 Conferma & Registra"
+            icon: mdi:account-check
+            color: green
+            tap_action:
+              action: call-service
+              service: shell_command.learn_latest_face
+              service_data:
+                name: "{{ states('input_text.nome_nuovo_volto') }}"
+              confirmation:
+                text: "Vuoi registrare questo volto tra i volti noti?"
+
+          - type: button
+            name: "🚫 Scarta Volto"
+            icon: mdi:delete-outline
+            color: red
+            tap_action:
+              action: call-service
+              service: persistent_notification.create
+              service_data:
+                title: "Volto Scartato"
+                message: "Lo snapshot è stato scartato e non verrà salvato tra i volti noti."

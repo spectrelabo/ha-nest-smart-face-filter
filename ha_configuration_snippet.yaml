@@ -57,7 +57,8 @@ automation:
           title: "⚠️ Persona Sconosciuta Rilevata!"
           message: "Rilevato volto sconosciuto sulla telecamera. Vuoi registrarlo tra i volti noti?"
           data:
-            image: "/local/snapshots/last_person.jpg"
+            url: "/lovelace/face-recognition"
+            image: "/local/snapshots/last_face_crop.jpg"
             actions:
               - action: "LEARN_FACE_ACTION"
                 title: "👤 Registra Volto"
