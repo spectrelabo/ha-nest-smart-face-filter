@@ -1,0 +1,19 @@
+analyze_snapshot:
+  name: Analyze Snapshot
+  description: Triggers face recognition on a specified camera snapshot image.
+  fields:
+    snapshot_path:
+      name: Snapshot Path
+      description: Path to the image file to analyze.
+      example: /config/www/last_person.jpg
+      selector:
+        text:
+    threshold:
+      name: Threshold
+      description: Distance threshold for face recognition matching.
+      example: 0.45
+      selector:
+        number:
+          min: 0.1
+          max: 0.9
+          step: 0.05
