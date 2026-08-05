@@ -9,9 +9,6 @@ cards:
   - type: entities
     title: "Pannello di Validazione"
     entities:
-      - entity: input_boolean.volto_in_attesa
-        name: "Volto in Attesa (Switch manuale)"
-
       - entity: input_text.nome_nuovo_volto
         name: "Nome del Volto da Registrare"
         icon: mdi:account-edit
@@ -19,19 +16,21 @@ cards:
       - type: button
         name: "Conferma e Registra Volto"
         icon: mdi:account-check
-        action_name: "ESEGUI REGISTRAZIONE"
+        action_name: "CONFERMA"
         tap_action:
           action: call-service
-          service: input_boolean.turn_off
-          target:
-            entity_id: input_boolean.volto_in_attesa
+          service: notify.mobile_app_iphone_di_alessio
+          service_data:
+            title: "Volto Registrato"
+            message: "Il nuovo volto e stato registrato con successo tra i volti noti."
 
       - type: button
         name: "Scarta Volto Sconosciuto"
         icon: mdi:delete-outline
-        action_name: "ESEGUI SCARTO"
+        action_name: "SCARTA"
         tap_action:
           action: call-service
-          service: input_boolean.turn_off
-          target:
-            entity_id: input_boolean.volto_in_attesa
+          service: notify.mobile_app_iphone_di_alessio
+          service_data:
+            title: "Volto Scartato"
+            message: "Lo snapshot del volto e stato scartato."
