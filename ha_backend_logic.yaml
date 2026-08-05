@@ -1,0 +1,49 @@
+# ==============================================================================
+# LOGICA DI BACKEND DA INSERIRE IN HOME ASSISTANT
+# ==============================================================================
+# Aggiungi queste sezioni in configuration.yaml o nei rispettivi file suddivisi 
+# (scripts.yaml, automations.yaml, input_boolean.yaml)
+
+input_boolean:
+  volto_in_attesa:
+    name: "Volto Sconosciuto in Attesa"
+    icon: mdi:face-recognition
+
+script:
+  # ----------------------------------------------------------------------------
+  # SCRIPT 1: Conferma e Registra
+  # ----------------------------------------------------------------------------
+  conferma_gestione_volto:
+    alias: "Conferma Registrazione Volto"
+    sequence:
+      # 1. Esegui il comando di training usando il nome inserito
+      - service: shell_command.learn_latest_face
+        data:
+          name: "{{ states('input_text.nome_nuovo_volto') }}"
+      # 2. Resetta l'input text per la prossima volta
+      - service: input_text.set_value
+        target:
+          entity_id: input_text.nome_nuovo_volto
+        data:
+          value: ""
+      # 3. Nascondi la card impostando il booleano a off
+      - service: input_boolean.turn_off
+        target:
+          entity_id: input_boolean.volto_in_attesa
+
+  # ----------------------------------------------------------------------------
+  # SCRIPT 2: Scarta Volto
+  # ----------------------------------------------------------------------------
+  scarta_gestione_volto:
+    alias: "Scarta Volto"
+    sequence:
+      # 1. Resetta l'input text
+      - service: input_text.set_value
+        target:
+          entity_id: input_text.nome_nuovo_volto
+        data:
+          value: ""
+      # 2. Nascondi la card
+      - service: input_boolean.turn_off
+        target:
+          entity_id: input_boolean.volto_in_attesa

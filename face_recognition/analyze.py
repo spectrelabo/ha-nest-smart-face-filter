@@ -163,7 +163,7 @@ def main():
         print(f"[METRICS] Detection: {infer_ms:.2f} ms | Total Execution Time: {elapsed_ms:.2f} ms")
         return
 
-    # 6. Crop del volto per l'anteprima zoomed-in nella notifica
+    # 6. Crop del volto principale per l'anteprima zoomed-in nella notifica
     best_face_obj = max(faces, key=lambda f: (f.bbox[2] - f.bbox[0]) * (f.bbox[3] - f.bbox[1]))
     bbox = [int(b) for b in best_face_obj.bbox]
     h, w, _ = img.shape
@@ -178,7 +178,6 @@ def main():
     cv2.imwrite(str(crop_path), crop_img)
 
     # 7. Confronto embeddings (Cosine Similarity)
-    match_found = False
     best_identity = None
     best_score = -1.0
 
@@ -194,7 +193,6 @@ def main():
     print(f"[RESULT] Miglior match: '{best_identity}' con punteggio similarity = {best_score:.4f} (Threshold = {THRESHOLD})")
 
     if best_score >= THRESHOLD:
-        match_found = True
         print(f"[SUCCESS] Volto RICONOSCIUTO: {best_identity} ({best_score * 100:.1f}% confidence)")
         notify_home_assistant("known_person_detected", {
             "identity": best_identity,

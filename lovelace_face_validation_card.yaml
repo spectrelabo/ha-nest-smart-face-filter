@@ -23,7 +23,7 @@ cards:
               icon: mdi:account-edit
 
             - type: button
-              name: "Conferma e Registra Volto"
+              name: "Conferma"
               icon: mdi:account-check
               action_name: "CONFERMA"
               tap_action:
@@ -31,7 +31,7 @@ cards:
                 service: script.conferma_gestione_volto
 
             - type: button
-              name: "Scarta Volto Sconosciuto"
+              name: "Scarta"
               icon: mdi:delete-outline
               action_name: "SCARTA"
               tap_action:
