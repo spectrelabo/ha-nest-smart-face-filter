@@ -1,3 +1,4 @@
+import os
 import sys
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -47,3 +48,40 @@ def test_analyze_nonexistent_snapshot_returns_400(client, tmp_path):
     )
     assert response.status_code == 400
     assert "error" in response.get_json()
+
+
+def test_learn_missing_fields_returns_400(client):
+    test_client, _ = client
+    response = test_client.post("/learn", json={"name": "mario_rossi"})
+    assert response.status_code == 400
+    assert "error" in response.get_json()
+
+
+def test_learn_nonexistent_image_returns_400(client, tmp_path):
+    test_client, _ = client
+    response = test_client.post(
+        "/learn",
+        json={"image_path": str(tmp_path / "missing.jpg"), "name": "mario_rossi"},
+    )
+    assert response.status_code == 400
+    assert "error" in response.get_json()
+
+
+def test_learn_saves_embedding_file(client, tmp_path, monkeypatch):
+    test_client, mock_engine = client
+    embeddings_dir = Path(os.environ["EMBEDDINGS_DIR"])
+    embeddings_dir.mkdir(parents=True, exist_ok=True)
+
+    fake_image = tmp_path / "unknown_20260101_000000.jpg"
+    fake_image.write_bytes(b"\xff\xd8\xff" + b"0" * 2000)  # placeholder JPEG-like bytes >1KB
+
+    mock_engine.extract_best_embedding.return_value = np.array([1.0, 0.0, 0.0])
+
+    with patch("analyze_server.cv2.imread", return_value=np.zeros((10, 10, 3), dtype=np.uint8)):
+        response = test_client.post(
+            "/learn", json={"image_path": str(fake_image), "name": "Mario Rossi"}
+        )
+
+    assert response.status_code == 200
+    assert response.get_json() == {"status": "learned", "identity": "mario_rossi"}
+    assert (embeddings_dir / "mario_rossi.npy").is_file()
