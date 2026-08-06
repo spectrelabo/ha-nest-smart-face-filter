@@ -2,16 +2,18 @@
 from __future__ import annotations
 
 import logging
-import asyncio
-import os
+
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, ServiceCall
+from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from .const import (
     DOMAIN,
+    CONF_ADDON_HOST,
     CONF_EMBEDDINGS_DIR,
     CONF_SNAPSHOT_PATH,
     CONF_THRESHOLD,
+    DEFAULT_ADDON_HOST,
     DEFAULT_EMBEDDINGS_DIR,
     DEFAULT_SNAPSHOT_PATH,
     DEFAULT_THRESHOLD,
@@ -25,8 +27,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     hass.data.setdefault(DOMAIN, {})
     hass.data[DOMAIN][entry.entry_id] = entry.data
 
+    def get_addon_host() -> str:
+        return entry.data.get(CONF_ADDON_HOST, DEFAULT_ADDON_HOST)
+
     async def handle_analyze_snapshot(call: ServiceCall):
-        """Service handler to trigger face recognition analysis."""
+        """Service handler to trigger face recognition analysis via the add-on."""
         snapshot = call.data.get(
             "snapshot_path",
             entry.data.get(CONF_SNAPSHOT_PATH, DEFAULT_SNAPSHOT_PATH),
@@ -34,26 +39,46 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         threshold = call.data.get(
             "threshold", entry.data.get(CONF_THRESHOLD, DEFAULT_THRESHOLD)
         )
-        embeddings_dir = entry.data.get(CONF_EMBEDDINGS_DIR, DEFAULT_EMBEDDINGS_DIR)
 
-        _LOGGER.info("Analyzing snapshot: %s (threshold: %s)", snapshot, threshold)
+        _LOGGER.info("Analyzing snapshot via add-on: %s (threshold: %s)", snapshot, threshold)
 
-        script_path = os.path.join(hass.config.config_dir, "face_recognition", "analyze.py")
-        if os.path.exists(script_path):
-            proc = await asyncio.create_subprocess_exec(
-                "python3", script_path, "--image", snapshot, "--embeddings", embeddings_dir, "--threshold", str(threshold),
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE
-            )
-            stdout, stderr = await proc.communicate()
-            if proc.returncode == 0:
-                _LOGGER.info("Face recognition completed: %s", stdout.decode().strip())
-            else:
-                _LOGGER.error("Face recognition failed: %s", stderr.decode().strip())
-        else:
-            _LOGGER.error("Analyze script not found at %s", script_path)
+        session = async_get_clientsession(hass)
+        url = f"{get_addon_host()}/analyze"
+        try:
+            async with session.post(
+                url,
+                json={"snapshot_path": snapshot, "threshold": threshold},
+                timeout=30,
+            ) as response:
+                result = await response.json()
+                if response.status == 200:
+                    _LOGGER.info("Face recognition completed: %s", result)
+                else:
+                    _LOGGER.error("Face recognition add-on returned error: %s", result)
+        except Exception as err:
+            _LOGGER.error("Failed to reach face recognition add-on at %s: %s", url, err)
+
+    async def handle_learn_face(call: ServiceCall):
+        """Service handler to register a new known face via the add-on."""
+        image_path = call.data["image_path"]
+        name = call.data["name"]
+
+        session = async_get_clientsession(hass)
+        url = f"{get_addon_host()}/learn"
+        try:
+            async with session.post(
+                url, json={"image_path": image_path, "name": name}, timeout=30
+            ) as response:
+                result = await response.json()
+                if response.status == 200:
+                    _LOGGER.info("Face learned: %s", result)
+                else:
+                    _LOGGER.error("Learn face add-on returned error: %s", result)
+        except Exception as err:
+            _LOGGER.error("Failed to reach face recognition add-on at %s: %s", url, err)
 
     hass.services.async_register(DOMAIN, "analyze_snapshot", handle_analyze_snapshot)
+    hass.services.async_register(DOMAIN, "learn_face", handle_learn_face)
     return True
 
 
