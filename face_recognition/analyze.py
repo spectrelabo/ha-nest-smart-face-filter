@@ -10,6 +10,11 @@ invia un evento/notifica a Home Assistant e archivia lo snapshot per l'acquisizi
 import os
 import sys
 
+# Assicura il caricamento delle librerie installate dall'utente (insightface, cv2, onnxruntime)
+user_site = "site.getusersitepackages()"
+if user_site not in sys.path:
+    sys.path.insert(0, user_site)
+
 # Previene deadlock OpenMP/Musl su Alpine Linux
 os.environ["OMP_NUM_THREADS"] = "1"
 os.environ["OPENBLAS_NUM_THREADS"] = "1"
