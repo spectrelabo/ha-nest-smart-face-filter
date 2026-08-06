@@ -158,12 +158,15 @@ def main():
     init_ms = (time.perf_counter() - init_start) * 1000
 
     # 4. Decodifica immagine
-    img = cv2.imread(str(snapshot_file))
+    img = cv2.imread(SNAPSHOT_PATH)
     if img is None:
-        print(f"[ERROR] Impossibile leggere lo snapshot con OpenCV: {snapshot_file}", file=sys.stderr)
-        elapsed_ms = (time.perf_counter() - start_time) * 1000
-        print(f"[METRICS] Execution time: {elapsed_ms:.2f} ms")
-        sys.exit(1)
+        try:
+            from PIL import Image
+            pil_img = Image.open(SNAPSHOT_PATH).convert("RGB")
+            img = cv2.cvtColor(np.array(pil_img), cv2.COLOR_RGB2BGR)
+        except Exception as e:
+            print(f"[ERROR] Impossibile leggere lo snapshot con OpenCV o PIL: {SNAPSHOT_PATH} ({e})")
+            sys.exit(1)
 
     # 5. Face Detection & Feature Extraction
     infer_start = time.perf_counter()
