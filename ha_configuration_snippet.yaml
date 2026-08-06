@@ -18,7 +18,7 @@ input_text:
 # ------------------------------------------------------------------------------
 shell_command:
   process_face_recognition: "python3 /config/face_recognition/analyze.py"
-  learn_latest_face: "python3 /config/face_recognition/learn_face.py --latest --name '{{ name }}'"
+  learn_latest_face: 'python3 /config/face_recognition/learn_face.py --latest --name "{{ name }}"'
 
 # ------------------------------------------------------------------------------
 # 3. AUTOMATION: Trigger Telecamera Nest + Snapshot + Riconoscimento
@@ -32,9 +32,12 @@ automation:
     trigger:
       - platform: state
         entity_id: event.campanello_porta_principale_motion
-        attribute: event_type
-        to: "camera_person"
+    condition:
+      - condition: template
+        value_template: "{{ trigger.to_state.attributes.event_type == 'camera_person' }}"
     action:
+      - delay:
+          seconds: 3
       - service: camera.snapshot
         target:
           entity_id: camera.campanello_porta_principale
