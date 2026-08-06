@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import logging
 
+import aiohttp
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
@@ -48,7 +49,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             async with session.post(
                 url,
                 json={"snapshot_path": snapshot, "threshold": threshold},
-                timeout=30,
+                timeout=aiohttp.ClientTimeout(total=30),
             ) as response:
                 result = await response.json()
                 if response.status == 200:
@@ -60,23 +61,23 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     async def handle_learn_face(call: ServiceCall):
         """Service handler to register a new known face via the add-on."""
-        image_path = call.data["image_path"]
-        name = call.data["name"]
-
         session = async_get_clientsession(hass)
         url = f"{get_addon_host()}/learn"
         try:
+            image_path = call.data["image_path"]
+            name = call.data["name"]
             async with session.post(
-                url, json={"image_path": image_path, "name": name}, timeout=30
+                url, json={"image_path": image_path, "name": name}, timeout=aiohttp.ClientTimeout(total=30)
             ) as response:
                 result = await response.json()
                 if response.status == 200:
                     _LOGGER.info("Face learned: %s", result)
                 else:
                     _LOGGER.error("Learn face add-on returned error: %s", result)
+        except KeyError as err:
+            _LOGGER.error("Missing required field for learn_face service call: %s", err)
         except Exception as err:
             _LOGGER.error("Failed to reach face recognition add-on at %s: %s", url, err)
-
     hass.services.async_register(DOMAIN, "analyze_snapshot", handle_analyze_snapshot)
     hass.services.async_register(DOMAIN, "learn_face", handle_learn_face)
     return True
