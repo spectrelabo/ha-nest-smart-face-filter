@@ -10,7 +10,11 @@ invia un evento/notifica a Home Assistant e archivia lo snapshot per l'acquisizi
 import os
 import sys
 
-# Assicura il caricamento delle librerie installate dall'utente (insightface, cv2, onnxruntime)
+# Assicura il caricamento delle librerie (insightface, cv2, onnxruntime, onnx) dalla cartella condivisa /config/
+shared_site = "/config/face_recognition/lib/site-packages"
+if shared_site not in sys.path:
+    sys.path.insert(0, shared_site)
+
 user_site = "site.getusersitepackages()"
 if user_site not in sys.path:
     sys.path.insert(0, user_site)
