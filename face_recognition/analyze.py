@@ -9,8 +9,20 @@ invia un evento/notifica a Home Assistant e archivia lo snapshot per l'acquisizi
 
 import os
 import sys
+import ctypes
 
-# Assicura il caricamento delle librerie (insightface, cv2, onnxruntime, onnx) dalla cartella condivisa /config/
+# Precarica librerie condivise C (libopencv*.so) dal volume condiviso /config/
+lib_dir = "/config/face_recognition/lib"
+if os.path.exists(lib_dir):
+    os.environ["LD_LIBRARY_PATH"] = lib_dir + ":" + os.environ.get("LD_LIBRARY_PATH", "")
+    for lib in ["libopencv_core.so.412", "libopencv_imgproc.so.412", "libopencv_imgcodecs.so.412", "libopencv_ml.so.412", "libopencv_dnn.so.412"]:
+        so_path = os.path.join(lib_dir, lib)
+        if os.path.exists(so_path):
+            try:
+                ctypes.CDLL(so_path, mode=ctypes.RTLD_GLOBAL)
+            except Exception:
+                pass
+
 shared_site = "/config/face_recognition/lib/site-packages"
 if shared_site not in sys.path:
     sys.path.insert(0, shared_site)
