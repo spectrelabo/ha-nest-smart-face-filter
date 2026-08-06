@@ -16,6 +16,7 @@ async def test_handle_analyze_snapshot_calls_addon_http_endpoint(hass):
     entry = AsyncMock()
     entry.entry_id = "test_entry"
     entry.data = {}
+    entry.options = {}
 
     with patch(
         "custom_components.ha_nest_smart_face_filter.async_get_clientsession"
