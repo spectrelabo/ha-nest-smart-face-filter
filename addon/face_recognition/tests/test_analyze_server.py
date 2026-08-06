@@ -67,7 +67,7 @@ def test_learn_nonexistent_image_returns_400(client, tmp_path):
     assert "error" in response.get_json()
 
 
-def test_learn_saves_embedding_file(client, tmp_path, monkeypatch):
+def test_learn_saves_embedding_file(client, tmp_path):
     test_client, mock_engine = client
     embeddings_dir = Path(os.environ["EMBEDDINGS_DIR"])
     embeddings_dir.mkdir(parents=True, exist_ok=True)
