@@ -1,10 +1,16 @@
 #!/usr/bin/env python3
 """
-analyze.py - Script event-driven per il riconoscimento facciale leggero.
+analyze.py - [LEGACY/DEPRECATO] Script event-driven per il riconoscimento facciale.
 
-Carica in RAM gli embedding noti (.npy), analizza lo snapshot inviato da Home Assistant
-e calcola la Cosine Similarity. Se la corrispondenza è inferiore a THRESHOLD = 0.45,
-invia un evento/notifica a Home Assistant e archivia lo snapshot per l'acquisizione di nuovi volti.
+QUESTO SCRIPT NON E' PIU' IL PERCORSO RACCOMANDATO. Su Home Assistant OS,
+shell_command esegue in un container Docker isolato da quello del Terminal &
+SSH add-on, quindi le dipendenze installate manualmente qui non sono
+raggiungibili in modo affidabile. Usa invece il Local Add-on "Face
+Recognition" (cartella addon/face_recognition/ in questo repo), che espone
+la stessa logica via API REST interna.
+
+Questo file resta nel repo solo per chi ha già un setup manuale funzionante
+via SSH e non vuole ancora migrare all'add-on.
 """
 
 import os

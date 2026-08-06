@@ -90,114 +90,40 @@ A zero-cloud, local-first, event-driven facial filter using **InsightFace (buffa
 
 ---
 
-### Step 4: Local Folder & Python Environment Setup
+## Installazione
 
-SSH into your Home Assistant host (or use Terminal / SSH Addon):
+### 1. Aggiungi questo repository come repository di Add-on
 
-1. Create the project directories:
-```bash
-mkdir -p /config/face_recognition/embeddings
-mkdir -p /config/www
+In Home Assistant: Impostazioni → Add-on → Add-on Store → menu (⋮) in alto
+a destra → Repository → incolla:
+
+```
+https://github.com/spectrelabo/ha-nest-smart-face-filter
 ```
 
-2. Install Python dependencies:
-```bash
-pip3 install --no-cache-dir \
-  insightface \
-  onnxruntime \
-  opencv-python-headless \
-  numpy
-```
+### 2. Installa l'Add-on "Face Recognition"
 
----
+Cerca "Face Recognition" nello store degli Add-on (sezione Local Add-ons),
+installalo e avvialo. Verifica nei log dell'add-on che riporti
+"Avvio Face Recognition add-on su porta 8080...".
 
-### Step 5: Generate Known Face Embeddings
+### 3. Installa l'integrazione HACS
 
-Convert face photos of household members into 512-dimensional vector files (`.npy`):
+Aggiungi questo stesso repository come repository HACS personalizzato
+(categoria Integration), installa "HA Nest Smart Face Filter", riavvia
+Home Assistant, poi aggiungi l'integrazione da Impostazioni → Dispositivi e
+Servizi → Aggiungi integrazione.
 
-1. Place a clear, front-facing photo of a known person (e.g. `john.jpg`) into `/config/www/`.
-2. Run the embedding extraction script:
-```bash
-python3 /config/face_recognition/create_embeddings.py \
-  --image /config/www/john.jpg \
-  --name "John"
-```
-3. The script creates `/config/face_recognition/embeddings/John.npy`. The raw image can now be deleted.
+Se il campo "Addon Host" mostrato durante la configurazione non corrisponde
+all'hostname reale del tuo add-on, puoi verificarlo in Impostazioni →
+Add-on → Face Recognition → Informazioni → Hostname, e aggiornarlo dalle
+opzioni dell'integrazione.
 
----
+### 4. Configura le automazioni
 
-### Step 6: Home Assistant Configuration & Automations
-
-1. Add the following to your `configuration.yaml`:
-
-```yaml
-homeassistant:
-  allowlist_external_dirs:
-    - "/config/www"
-
-shell_command:
-  process_face_recognition: "python3 /config/face_recognition/analyze.py"
-  learn_latest_face: "python3 /config/face_recognition/learn_face.py --name '{{ name }}'"
-```
-
-2. Add the main automation to `automations.yaml`:
-
-```yaml
-- id: nest_camera_face_recognition_pipeline
-  alias: "Nest Camera - Face Recognition Pipeline"
-  description: "Triggers on Nest person event, captures snapshot, and executes face recognition."
-  mode: single
-  max_exceeded: silent
-  trigger:
-    - platform: state
-      entity_id: event.front_door_motion
-      attribute: event_type
-      to: "camera_person"
-  action:
-    - service: camera.snapshot
-      target:
-        entity_id: camera.front_door
-      data:
-        filename: "/config/www/last_person.jpg"
-    - service: shell_command.process_face_recognition
-```
-
-3. Add the notification automation for unknown faces to `automations.yaml`:
-
-```yaml
-- id: notify_on_unknown_person_detected
-  alias: "Nest Camera - Unknown Person Notification"
-  description: "Sends an actionable notification when an unknown person is detected."
-  trigger:
-    - platform: event
-      event_type: unknown_person_detected
-  action:
-    - service: notify.notify
-      data:
-        title: "Unknown Person Detected!"
-        message: "Unrecognized face detected at the front door."
-        data:
-          url: "/face-recognition/home"
-          image: "/local/last_person.jpg"
-          actions:
-            - action: "URI"
-              title: "Open Face Management"
-              uri: "/face-recognition/home"
-```
-
-4. Reload Automations in Home Assistant (**Developer Tools -> YAML -> Automations**).
-
----
-
-## HACS Installation (Custom Repository)
-
-To install or track this repository using HACS:
-
-1. Open **HACS** in Home Assistant.
-2. Click the top-right menu (3 dots) and select **Custom repositories**.
-3. Enter `https://github.com/spectrelabo/ha-nest-smart-face-filter` in the Repository field.
-4. Select **Integration** or **Script** as the Category and click **Add**.
-5. Click **Download** to pull updates.
+Copia le automazioni di esempio da `ha_configuration_snippet.yaml` nel tuo
+`configuration.yaml` (o tramite l'editor Automazioni), adattando le entity
+delle tue telecamere Nest.
 
 ---
 

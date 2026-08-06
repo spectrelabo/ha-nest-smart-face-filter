@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 """
-learn_face.py - Helper CLI per apprendere nuovi volti dagli snapshot archiviati.
+learn_face.py - [LEGACY/DEPRECATO] Helper CLI per apprendere nuovi volti.
 
-Prende in input uno snapshot sconosciuto salvato in `/config/face_recognition/unknown_faces/`
-ed una nuova identità, estrae l'embedding .npy e lo registra tra i volti noti.
+QUESTO SCRIPT NON E' PIU' IL PERCORSO RACCOMANDATO. Usa invece il servizio
+ha_nest_smart_face_filter.learn_face (chiama l'endpoint POST /learn del
+Local Add-on "Face Recognition"). Questo file resta nel repo solo per chi
+ha già un setup manuale funzionante via SSH.
 """
 
 import argparse
