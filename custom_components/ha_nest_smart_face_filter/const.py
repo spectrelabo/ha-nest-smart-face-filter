@@ -3,9 +3,12 @@
 DOMAIN = "ha_nest_smart_face_filter"
 DEFAULT_NAME = "HA Nest Smart Face Filter"
 
+CONF_ADDON_HOST = "addon_host"
 CONF_EMBEDDINGS_DIR = "embeddings_dir"
 CONF_SNAPSHOT_PATH = "snapshot_path"
 CONF_THRESHOLD = "threshold"
+
+DEFAULT_ADDON_HOST = "http://a0d7b954-face_recognition:8080"
 
 DEFAULT_EMBEDDINGS_DIR = "/config/face_recognition/embeddings"
 DEFAULT_SNAPSHOT_PATH = "/config/www/last_person.jpg"

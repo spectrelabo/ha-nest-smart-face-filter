@@ -10,9 +10,11 @@ import homeassistant.helpers.config_validation as cv
 
 from .const import (
     DOMAIN,
+    CONF_ADDON_HOST,
     CONF_EMBEDDINGS_DIR,
     CONF_SNAPSHOT_PATH,
     CONF_THRESHOLD,
+    DEFAULT_ADDON_HOST,
     DEFAULT_EMBEDDINGS_DIR,
     DEFAULT_SNAPSHOT_PATH,
     DEFAULT_THRESHOLD,
@@ -40,6 +42,9 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         data_schema = vol.Schema(
             {
+                vol.Optional(
+                    CONF_ADDON_HOST, default=DEFAULT_ADDON_HOST
+                ): cv.string,
                 vol.Optional(
                     CONF_EMBEDDINGS_DIR, default=DEFAULT_EMBEDDINGS_DIR
                 ): cv.string,
@@ -74,6 +79,10 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
             return self.async_create_entry(title="", data=user_input)
 
         options = self.config_entry.options
+        addon_host = options.get(
+            CONF_ADDON_HOST,
+            self.config_entry.data.get(CONF_ADDON_HOST, DEFAULT_ADDON_HOST),
+        )
         embeddings_dir = options.get(
             CONF_EMBEDDINGS_DIR,
             self.config_entry.data.get(CONF_EMBEDDINGS_DIR, DEFAULT_EMBEDDINGS_DIR),
@@ -89,6 +98,7 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
 
         options_schema = vol.Schema(
             {
+                vol.Optional(CONF_ADDON_HOST, default=addon_host): cv.string,
                 vol.Optional(CONF_EMBEDDINGS_DIR, default=embeddings_dir): cv.string,
                 vol.Optional(CONF_SNAPSHOT_PATH, default=snapshot_path): cv.string,
                 vol.Optional(
