@@ -159,5 +159,43 @@ def analyze():
     return jsonify({"identity": best_identity, "score": round(best_score, 4), "matched": matched})
 
 
+@app.route("/learn", methods=["POST"])
+def learn():
+    data = request.get_json(silent=True) or {}
+    image_path = data.get("image_path")
+    name = data.get("name")
+
+    if not image_path or not name:
+        return jsonify({"error": "image_path and name are required"}), 400
+
+    image_file = Path(image_path)
+    if not image_file.is_file():
+        return jsonify({"error": f"image not found: {image_path}"}), 400
+
+    identity_name = name.strip().lower().replace(" ", "_")
+
+    img = cv2.imread(str(image_file))
+    if img is None:
+        return jsonify({"error": f"failed to decode image: {image_path}"}), 400
+
+    engine = get_engine()
+    embedding = engine.extract_best_embedding(img)
+    if embedding is None:
+        return jsonify({"error": "no face detected in image"}), 400
+
+    output_dir = Path(EMBEDDINGS_DIR)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    np.save(output_dir / f"{identity_name}.npy", embedding)
+
+    processed_dir = Path(UNKNOWN_FACES_DIR) / "learned"
+    processed_dir.mkdir(parents=True, exist_ok=True)
+    try:
+        shutil.move(str(image_file), str(processed_dir / f"{identity_name}_{image_file.name}"))
+    except Exception as e:
+        print(f"[WARNING] Impossibile archiviare la foto sorgente: {e}", file=sys.stderr)
+
+    return jsonify({"status": "learned", "identity": identity_name})
+
+
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=8080)
