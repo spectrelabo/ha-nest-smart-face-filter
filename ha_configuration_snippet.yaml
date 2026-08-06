@@ -32,6 +32,8 @@ automation:
     trigger:
       - platform: state
         entity_id: event.campanello_porta_principale_motion
+      - platform: state
+        entity_id: event.campanello_porta_principale_chime
     action:
       - delay:
           seconds: 3
