@@ -8,7 +8,11 @@ CONF_EMBEDDINGS_DIR = "embeddings_dir"
 CONF_SNAPSHOT_PATH = "snapshot_path"
 CONF_THRESHOLD = "threshold"
 
-DEFAULT_ADDON_HOST = "http://a0d7b954-face_recognition:8080"
+# HA Supervisor's internal DNS uses hyphens for add-on slugs (underscores → hyphens).
+# The `a0d7b954` prefix is a Supervisor-generated repository hash placeholder — it will
+# differ per installation. Verify the real hostname via Settings → Add-ons → Face Recognition
+# → Info → Hostname and override it in the integration's Options if needed.
+DEFAULT_ADDON_HOST = "http://a0d7b954-face-recognition:8080"
 
 DEFAULT_EMBEDDINGS_DIR = "/config/face_recognition/embeddings"
 DEFAULT_SNAPSHOT_PATH = "/config/www/last_person.jpg"

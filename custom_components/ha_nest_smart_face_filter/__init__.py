@@ -23,22 +23,32 @@ from .const import (
 _LOGGER = logging.getLogger(__name__)
 
 
+async def _async_update_listener(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    """Reload the config entry when options are updated."""
+    await hass.config_entries.async_reload(entry.entry_id)
+
+
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up HA Nest Smart Face Filter from a config entry."""
     hass.data.setdefault(DOMAIN, {})
     hass.data[DOMAIN][entry.entry_id] = entry.data
 
+    def get_config() -> dict:
+        """Merge config entry data with any options-flow overrides (options win)."""
+        return {**entry.data, **entry.options}
+
     def get_addon_host() -> str:
-        return entry.data.get(CONF_ADDON_HOST, DEFAULT_ADDON_HOST)
+        return get_config().get(CONF_ADDON_HOST, DEFAULT_ADDON_HOST)
 
     async def handle_analyze_snapshot(call: ServiceCall):
         """Service handler to trigger face recognition analysis via the add-on."""
+        config = get_config()
         snapshot = call.data.get(
             "snapshot_path",
-            entry.data.get(CONF_SNAPSHOT_PATH, DEFAULT_SNAPSHOT_PATH),
+            config.get(CONF_SNAPSHOT_PATH, DEFAULT_SNAPSHOT_PATH),
         )
         threshold = call.data.get(
-            "threshold", entry.data.get(CONF_THRESHOLD, DEFAULT_THRESHOLD)
+            "threshold", config.get(CONF_THRESHOLD, DEFAULT_THRESHOLD)
         )
 
         _LOGGER.info("Analyzing snapshot via add-on: %s (threshold: %s)", snapshot, threshold)
@@ -80,6 +90,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             _LOGGER.error("Failed to reach face recognition add-on at %s: %s", url, err)
     hass.services.async_register(DOMAIN, "analyze_snapshot", handle_analyze_snapshot)
     hass.services.async_register(DOMAIN, "learn_face", handle_learn_face)
+    entry.async_on_unload(entry.add_update_listener(_async_update_listener))
     return True
 
 
