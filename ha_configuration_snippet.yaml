@@ -14,14 +14,7 @@ input_text:
     icon: mdi:account-plus
 
 # ------------------------------------------------------------------------------
-# 2. SHELL COMMAND DEFINITION (configuration.yaml)
-# ------------------------------------------------------------------------------
-shell_command:
-  process_face_recognition: "python3 /config/face_recognition/analyze.py"
-  learn_latest_face: 'python3 /config/face_recognition/learn_face.py --latest --name "{{ name }}"'
-
-# ------------------------------------------------------------------------------
-# 3. AUTOMATION: Trigger Telecamera Nest + Snapshot + Riconoscimento
+# 2. AUTOMATION: Trigger Telecamera Nest + Snapshot + Riconoscimento
 # ------------------------------------------------------------------------------
 automation:
   - id: nest_camera_face_recognition_pipeline
@@ -43,7 +36,7 @@ automation:
         data:
           filename: "/config/www/last_person.jpg"
       
-      - service: shell_command.process_face_recognition
+      - service: ha_nest_smart_face_filter.analyze_snapshot
 
 # ------------------------------------------------------------------------------
 # 4. NOTIFICA AZIONABILE: Notifica Persona Sconosciuta con Pulsanti di Validazione
