@@ -9,6 +9,14 @@ invia un evento/notifica a Home Assistant e archivia lo snapshot per l'acquisizi
 
 import os
 import sys
+
+# Previene deadlock OpenMP/Musl su Alpine Linux
+os.environ["OMP_NUM_THREADS"] = "1"
+os.environ["OPENBLAS_NUM_THREADS"] = "1"
+os.environ["MKL_NUM_THREADS"] = "1"
+os.environ["VECLIB_MAXIMUM_THREADS"] = "1"
+os.environ["NUMEXPR_NUM_THREADS"] = "1"
+
 import time
 import shutil
 from datetime import datetime
@@ -26,7 +34,7 @@ except ImportError:
 
 # Configurazione predefinita
 EMBEDDINGS_DIR = os.getenv("EMBEDDINGS_DIR", "/config/face_recognition/embeddings")
-SNAPSHOT_PATH = os.getenv("SNAPSHOT_PATH", "/config/www/snapshots/last_person.jpg")
+SNAPSHOT_PATH = os.getenv("SNAPSHOT_PATH", "/config/www/last_person.jpg")
 THRESHOLD = float(os.getenv("THRESHOLD", "0.45"))
 SAVE_UNKNOWN_FACES = os.getenv("SAVE_UNKNOWN_FACES", "true").lower() == "true"
 UNKNOWN_FACES_DIR = os.getenv("UNKNOWN_FACES_DIR", "/config/face_recognition/unknown_faces")
@@ -136,8 +144,8 @@ def main():
 
     # 3. Inizializzazione InsightFace
     init_start = time.perf_counter()
-    app = FaceAnalysis(name="buffalo_s", providers=["CPUExecutionProvider"])
-    app.prepare(ctx_id=0, det_size=(640, 640))
+    app = FaceAnalysis(name="buffalo_s", providers=["CPUExecutionProvider"], allowed_modules=["detection", "recognition"])
+    app.prepare(ctx_id=0, det_size=(320, 320))
     init_ms = (time.perf_counter() - init_start) * 1000
 
     # 4. Decodifica immagine

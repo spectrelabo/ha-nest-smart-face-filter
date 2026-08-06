@@ -13,5 +13,5 @@
     "opencv-python-headless>=4.8.0",
     "numpy>=1.23.0"
   ],
-  "version": "1.0.0"
+  "version": "1.0.1"
 }
