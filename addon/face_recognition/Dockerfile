@@ -17,6 +17,9 @@ COPY recognition.py analyze_server.py ./
 COPY run.sh /
 RUN chmod a+x /run.sh
 
+# NOTA: EXPOSE è puramente documentale (non pubblica la porta sull'host).
+# L'isolamento di rete reale è imposto da config.yaml ("ports: 8080/tcp: null"),
+# che espone la porta solo sulla rete Docker interna di Home Assistant.
 EXPOSE 8080
 
 CMD [ "/run.sh" ]
