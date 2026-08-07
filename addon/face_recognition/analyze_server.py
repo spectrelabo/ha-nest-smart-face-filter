@@ -10,6 +10,7 @@ shell_command dentro il container di Home Assistant Core.
 import os
 import shutil
 import sys
+import threading
 import time
 from datetime import datetime
 from pathlib import Path
@@ -138,7 +139,9 @@ def _refresh_current_pending_pointer(current_file) -> None:
             # directly onto the shared pointer path, so concurrent requests (this
             # GET is polled every 60s by the HA coordinator, and is also reached
             # from /skip and /discard) can never observe a partially-written file.
-            tmp_path = pointer_path.with_suffix(pointer_path.suffix + ".tmp")
+            tmp_path = pointer_path.with_suffix(
+                pointer_path.suffix + f".{os.getpid()}.{threading.get_ident()}.tmp"
+            )
             shutil.copy(current_file, tmp_path)
             os.replace(tmp_path, pointer_path)
         else:
