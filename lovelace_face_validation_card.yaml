@@ -1,72 +1,72 @@
-title: "Riconoscimento Facciale - Nest"
+title: "Face Recognition - Nest"
 icon: mdi:face-recognition
 path: face-recognition
 cards:
-  # CARD 1: quando c'è almeno un volto sconosciuto in coda
-  # NOTA: verifica l'entity_id esatto del sensore nella tua istanza
-  # (dipende dal nome dato all'integrazione in fase di configurazione).
+  # CARD 1: when there is at least one unknown face in the queue
+  # NOTE: verify the sensor's exact entity_id in your instance
+  # (it depends on the name given to the integration during setup).
   - type: conditional
     conditions:
       - entity: sensor.nest_smart_face_filter_volti_in_attesa
         state_not: "0"
     card:
       type: vertical-stack
-      title: "Validazione Volto Rilevato"
+      title: "Detected Face Validation"
       cards:
-        # NOTA: la card nativa "type: picture" NON valuta template Jinja nel campo
-        # "image" (prende la stringa alla lettera) - usiamo "markdown" con un tag
-        # <img>, che supporta i template, per costruire l'URL dinamicamente.
+        # NOTE: the native "type: picture" card does NOT evaluate Jinja templates in the
+        # "image" field (it takes the string literally) - we use "markdown" with an
+        # inline <img> tag, which supports templates, to build the URL dynamically.
         - type: markdown
           content: >-
-            ### Anteprima Volto Rilevato
+            ### Detected Face Preview
 
             <img src="{{ state_attr('sensor.nest_smart_face_filter_volti_in_attesa', 'image_url') }}?t={{ as_timestamp(states.sensor.nest_smart_face_filter_volti_in_attesa.last_changed) }}" style="width:100%;border-radius:8px;" />
 
         - type: markdown
           content: >-
             **{{ states('sensor.nest_smart_face_filter_volti_in_attesa') }}**
-            volto/i in attesa di gestione
+            face(s) waiting to be handled
 
         - type: entities
-          title: "Pannello di Validazione"
+          title: "Validation Panel"
           entities:
             - entity: input_text.nome_nuovo_volto
-              name: "Nome del Volto da Registrare"
+              name: "Name of the Face to Register"
               icon: mdi:account-edit
 
             - type: button
-              name: "Conferma"
+              name: "Confirm"
               icon: mdi:account-check
-              action_name: "CONFERMA"
+              action_name: "CONFIRM"
               tap_action:
                 action: call-service
                 service: script.conferma_gestione_volto
 
             - type: button
-              name: "Scarta"
+              name: "Discard"
               icon: mdi:delete-outline
-              action_name: "SCARTA"
+              action_name: "DISCARD"
               tap_action:
                 action: call-service
                 service: ha_nest_smart_face_filter.discard_pending_face
 
             - type: button
-              name: "Prossimo"
+              name: "Next"
               icon: mdi:skip-next
-              action_name: "PROSSIMO"
+              action_name: "NEXT"
               tap_action:
                 action: call-service
                 service: ha_nest_smart_face_filter.skip_pending_face
 
-  # CARD 2: quando la coda è vuota
+  # CARD 2: when the queue is empty
   - type: conditional
     conditions:
       - entity: sensor.nest_smart_face_filter_volti_in_attesa
         state: "0"
     card:
       type: markdown
-      title: "Sistema di Riconoscimento Attivo"
+      title: "Recognition System Active"
       content: |
-        ### Nessun volto in attesa di validazione
+        ### No face waiting for validation
 
-        Tutti i rilevamenti sono stati gestiti. Quando la telecamera rileverà un nuovo volto sconosciuto, comparirà qui la scheda per la registrazione.
+        All detections have been handled. When the camera detects a new unknown face, the registration card will appear here.

@@ -1,4 +1,4 @@
-"""Richiede pytest-homeassistant-custom-component installato nel venv di sviluppo."""
+"""Requires pytest-homeassistant-custom-component installed in the development venv."""
 import sys
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -56,8 +56,8 @@ async def test_coordinator_marks_unavailable_when_addon_unreachable(hass):
 def test_pending_faces_sensor_name_yields_slug_prefixed_entity_id():
     """The entity's derived object_id must be <entry_title_slug>_volti_in_attesa
     (e.g. sensor.nest_smart_face_filter_volti_in_attesa for the default entry
-    title "Nest Smart Face Filter"), per the plan's documented entity contract,
-    not a bare "volti_in_attesa" that would collide across config entries."""
+    title "Nest Smart Face Filter"), per the documented entity contract, not
+    a bare "volti_in_attesa" that would collide across config entries."""
     from homeassistant.util import slugify
 
     from custom_components.ha_nest_smart_face_filter.sensor import PendingFacesSensor

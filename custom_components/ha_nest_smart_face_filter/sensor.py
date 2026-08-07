@@ -1,4 +1,4 @@
-"""Sensor platform for HA Nest Smart Face Filter — coda dei volti sconosciuti."""
+"""Sensor platform for HA Nest Smart Face Filter — unknown face queue."""
 from __future__ import annotations
 
 import logging
@@ -24,7 +24,7 @@ SCAN_INTERVAL = timedelta(seconds=60)
 
 
 class PendingFacesCoordinator(DataUpdateCoordinator):
-    """Coordinator che interroga l'endpoint /unknown_faces/queue dell'add-on."""
+    """Coordinator that polls the add-on's /unknown_faces/queue endpoint."""
 
     def __init__(self, hass: HomeAssistant, addon_host: str) -> None:
         super().__init__(
@@ -50,13 +50,13 @@ class PendingFacesCoordinator(DataUpdateCoordinator):
 async def async_setup_entry(
     hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback
 ) -> None:
-    """Configura il sensore dei volti in attesa da una config entry."""
+    """Set up the pending-faces sensor from a config entry."""
     coordinator = hass.data[DOMAIN][entry.entry_id]["coordinator"]
     async_add_entities([PendingFacesSensor(coordinator, entry)])
 
 
 class PendingFacesSensor(CoordinatorEntity, SensorEntity):
-    """Sensore che espone il conteggio dei volti sconosciuti in attesa di revisione."""
+    """Sensor exposing the count of unknown faces waiting for review."""
 
     _attr_icon = "mdi:face-recognition"
 

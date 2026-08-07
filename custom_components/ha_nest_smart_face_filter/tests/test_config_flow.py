@@ -1,4 +1,4 @@
-"""Richiede pytest-homeassistant-custom-component installato nel venv di sviluppo.
+"""Requires pytest-homeassistant-custom-component installed in the development venv.
 
 Regression test for a live bug found in production logs: opening the
 integration's Options flow raised

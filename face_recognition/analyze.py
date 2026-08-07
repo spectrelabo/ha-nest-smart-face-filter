@@ -1,23 +1,23 @@
 #!/usr/bin/env python3
 """
-analyze.py - [LEGACY/DEPRECATO] Script event-driven per il riconoscimento facciale.
+analyze.py - [LEGACY/DEPRECATED] Event-driven face recognition script.
 
-QUESTO SCRIPT NON E' PIU' IL PERCORSO RACCOMANDATO. Su Home Assistant OS,
-shell_command esegue in un container Docker isolato da quello del Terminal &
-SSH add-on, quindi le dipendenze installate manualmente qui non sono
-raggiungibili in modo affidabile. Usa invece il Local Add-on "Face
-Recognition" (cartella addon/face_recognition/ in questo repo), che espone
-la stessa logica via API REST interna.
+THIS SCRIPT IS NO LONGER THE RECOMMENDED PATH. On Home Assistant OS,
+shell_command runs inside a Docker container isolated from the Terminal &
+SSH add-on container, so the dependencies installed manually here are not
+reliably reachable. Use the local "Face Recognition" add-on instead
+(folder addon/face_recognition/ in this repo), which exposes the same logic
+through an internal REST API.
 
-Questo file resta nel repo solo per chi ha già un setup manuale funzionante
-via SSH e non vuole ancora migrare all'add-on.
+This file remains in the repo only for users who already have a working manual
+setup via SSH and do not want to migrate to the add-on yet.
 """
 
 import os
 import sys
 import ctypes
 
-# Precarica librerie condivise C (libopencv*.so) dal volume condiviso /config/
+# Preload shared C libraries (libopencv*.so) from the shared /config/ volume
 lib_dir = "/config/face_recognition/lib"
 if os.path.exists(lib_dir):
     os.environ["LD_LIBRARY_PATH"] = lib_dir + ":" + os.environ.get("LD_LIBRARY_PATH", "")
@@ -37,7 +37,7 @@ user_site = "site.getusersitepackages()"
 if user_site not in sys.path:
     sys.path.insert(0, user_site)
 
-# Previene deadlock OpenMP/Musl su Alpine Linux
+# Prevent OpenMP/Musl deadlocks on Alpine Linux
 os.environ["OMP_NUM_THREADS"] = "1"
 os.environ["OPENBLAS_NUM_THREADS"] = "1"
 os.environ["MKL_NUM_THREADS"] = "1"
@@ -56,10 +56,10 @@ try:
     import insightface
     from insightface.app import FaceAnalysis
 except ImportError:
-    print("[ERROR] Dipendenza 'insightface' mancante. Installa con: pip install insightface onnxruntime opencv-python-headless numpy requests", file=sys.stderr)
+    print("[ERROR] Missing 'insightface' dependency. Install with: pip install insightface onnxruntime opencv-python-headless numpy requests", file=sys.stderr)
     sys.exit(1)
 
-# Configurazione predefinita
+# Default configuration
 EMBEDDINGS_DIR = os.getenv("EMBEDDINGS_DIR", "/config/face_recognition/embeddings")
 SNAPSHOT_PATH = os.getenv("SNAPSHOT_PATH", "/config/www/last_person.jpg")
 THRESHOLD = float(os.getenv("THRESHOLD", "0.45"))
@@ -67,17 +67,17 @@ SAVE_UNKNOWN_FACES = os.getenv("SAVE_UNKNOWN_FACES", "true").lower() == "true"
 UNKNOWN_FACES_DIR = os.getenv("UNKNOWN_FACES_DIR", "/config/face_recognition/unknown_faces")
 MAX_SAVED_FACES = int(os.getenv("MAX_SAVED_FACES", "30"))
 
-# Configurazione Home Assistant REST API
+# Home Assistant REST API configuration
 HA_URL = os.getenv("SUPERVISOR_TOKEN", None)  # HA Supervisor REST Endpoint
 HA_BASE_URL = os.getenv("HA_BASE_URL", "http://supervisor/core")
 HA_BEARER_TOKEN = os.getenv("SUPERVISOR_TOKEN") or os.getenv("HA_ACCESS_TOKEN", "")
 
 
 def load_known_embeddings(embeddings_dir: Path) -> dict:
-    """Carica in RAM tutti i file .npy presenti nella directory specificata."""
+    """Load into RAM all .npy files found in the specified directory."""
     known_faces = {}
     if not embeddings_dir.exists():
-        print(f"[WARNING] Directory embedding non trovata: {embeddings_dir}")
+        print(f"[WARNING] Embeddings directory not found: {embeddings_dir}")
         return known_faces
 
     for npy_file in embeddings_dir.glob("*.npy"):
@@ -87,13 +87,13 @@ def load_known_embeddings(embeddings_dir: Path) -> dict:
             identity = npy_file.stem
             known_faces[identity] = emb
         except Exception as e:
-            print(f"[ERROR] Impossibile caricare {npy_file}: {e}", file=sys.stderr)
+            print(f"[ERROR] Unable to load {npy_file}: {e}", file=sys.stderr)
 
     return known_faces
 
 
 def cosine_similarity(emb1: np.ndarray, emb2: np.ndarray) -> float:
-    """Calcola la cosine similarity tra due vettori normalizzati."""
+    """Calculate cosine similarity between two normalized vectors."""
     dot_product = np.dot(emb1, emb2)
     norm1 = np.linalg.norm(emb1)
     norm2 = np.linalg.norm(emb2)
@@ -103,7 +103,7 @@ def cosine_similarity(emb1: np.ndarray, emb2: np.ndarray) -> float:
 
 
 def archive_unknown_face(snapshot_file: Path):
-    """Archivia lo snapshot del volto sconosciuto per consentire l'acquisizione di nuovi volti."""
+    """Archive the unknown-face snapshot so new faces can be learned later."""
     if not SAVE_UNKNOWN_FACES:
         return
 
@@ -115,25 +115,25 @@ def archive_unknown_face(snapshot_file: Path):
 
     try:
         shutil.copy(snapshot_file, dest_file)
-        print(f"[INFO] Snapshot archiviato in: {dest_file} (utilizzabile per apprendere un nuovo volto).")
+        print(f"[INFO] Snapshot archived at: {dest_file} (can be used to learn a new face).")
 
-        # Gestione mantenimento massimo N immagini (Auto-pruning)
+        # Enforce the maximum number of stored images (auto-pruning)
         saved_files = sorted(unknown_dir.glob("unknown_*.jpg"), key=os.path.getmtime)
         if len(saved_files) > MAX_SAVED_FACES:
             for old_file in saved_files[:-MAX_SAVED_FACES]:
                 try:
                     old_file.unlink()
-                    print(f"[CLEANUP] Rimosso vecchio snapshot archiviato: {old_file.name}")
+                    print(f"[CLEANUP] Removed old archived snapshot: {old_file.name}")
                 except Exception as e:
-                    print(f"[WARNING] Impossibile rimuovere {old_file}: {e}")
+                    print(f"[WARNING] Unable to remove {old_file}: {e}")
     except Exception as e:
-        print(f"[ERROR] Errore durante l'archiviazione dello snapshot: {e}", file=sys.stderr)
+        print(f"[ERROR] Error while archiving the snapshot: {e}", file=sys.stderr)
 
 
 def notify_home_assistant(event_name: str, payload: dict):
-    """Invia un evento personalizzato a Home Assistant via REST API."""
+    """Send a custom event to Home Assistant through the REST API."""
     if not HA_BEARER_TOKEN:
-        print("[INFO] Nessun token HA configurato. Notifica via API ignorata.")
+        print("[INFO] No HA token configured. API notification skipped.")
         return
 
     url = f"{HA_BASE_URL}/api/events/{event_name}"
@@ -144,38 +144,38 @@ def notify_home_assistant(event_name: str, payload: dict):
     try:
         response = requests.post(url, json=payload, headers=headers, timeout=5)
         if response.status_code in (200, 201):
-            print(f"[SUCCESS] Evento '{event_name}' inviato a Home Assistant (status: {response.status_code}).")
+            print(f"[SUCCESS] Event '{event_name}' sent to Home Assistant (status: {response.status_code}).")
         else:
-            print(f"[WARNING] Risposta HA API non prevista ({response.status_code}): {response.text}")
+            print(f"[WARNING] Unexpected HA API response ({response.status_code}): {response.text}")
     except Exception as e:
-        print(f"[ERROR] Impossibile inviare evento a Home Assistant: {e}", file=sys.stderr)
+        print(f"[ERROR] Unable to send event to Home Assistant: {e}", file=sys.stderr)
 
 
 def main():
     start_time = time.perf_counter()
-    print("=== [FACE RECONSTRUCTION PIPELINE] Esecuzione Analisi ===")
+    print("=== [FACE RECOGNITION PIPELINE] Analysis Run ===")
 
     embeddings_path = Path(EMBEDDINGS_DIR)
     snapshot_file = Path(SNAPSHOT_PATH)
 
-    # 1. Carica volti noti in RAM
+    # 1. Load known faces into RAM
     known_faces = load_known_embeddings(embeddings_path)
-    print(f"[INFO] Volti noti caricati in RAM: {len(known_faces)} ({list(known_faces.keys())})")
+    print(f"[INFO] Known faces loaded into RAM: {len(known_faces)} ({list(known_faces.keys())})")
 
-    # 2. Verifica presenza snapshot
+    # 2. Check whether the snapshot exists
     if not snapshot_file.is_file():
-        print(f"[ERROR] Snapshot non trovato: {snapshot_file}", file=sys.stderr)
+        print(f"[ERROR] Snapshot not found: {snapshot_file}", file=sys.stderr)
         elapsed_ms = (time.perf_counter() - start_time) * 1000
         print(f"[METRICS] Execution time: {elapsed_ms:.2f} ms")
         sys.exit(1)
 
-    # 3. Inizializzazione InsightFace
+    # 3. Initialize InsightFace
     init_start = time.perf_counter()
     app = FaceAnalysis(name="buffalo_s", providers=["CPUExecutionProvider"], allowed_modules=["detection", "recognition"])
     app.prepare(ctx_id=0, det_size=(320, 320))
     init_ms = (time.perf_counter() - init_start) * 1000
 
-    # 4. Decodifica immagine
+    # 4. Decode image
     img = cv2.imread(SNAPSHOT_PATH)
     if img is None:
         try:
@@ -183,7 +183,7 @@ def main():
             pil_img = Image.open(SNAPSHOT_PATH).convert("RGB")
             img = cv2.cvtColor(np.array(pil_img), cv2.COLOR_RGB2BGR)
         except Exception as e:
-            print(f"[ERROR] Impossibile leggere lo snapshot con OpenCV o PIL: {SNAPSHOT_PATH} ({e})")
+            print(f"[ERROR] Unable to read the snapshot with OpenCV or PIL: {SNAPSHOT_PATH} ({e})")
             sys.exit(1)
 
     # 5. Face Detection & Feature Extraction
@@ -192,16 +192,16 @@ def main():
     infer_ms = (time.perf_counter() - infer_start) * 1000
 
     if not faces:
-        print(f"[WARNING] Nessun volto rilevato nello snapshot {snapshot_file}.")
+        print(f"[WARNING] No face detected in snapshot {snapshot_file}.")
         notify_home_assistant("no_face_detected", {
             "snapshot_path": str(snapshot_file),
-            "message": "Persona rilevata da Nest ma nessun volto estraibile dallo snapshot."
+            "message": "Person detected by Nest but no extractable face found in the snapshot."
         })
         elapsed_ms = (time.perf_counter() - start_time) * 1000
         print(f"[METRICS] Detection: {infer_ms:.2f} ms | Total Execution Time: {elapsed_ms:.2f} ms")
         return
 
-    # 6. Crop del volto principale per l'anteprima zoomed-in nella notifica
+    # 6. Crop the main face for the zoomed-in preview in the notification
     best_face_obj = max(faces, key=lambda f: (f.bbox[2] - f.bbox[0]) * (f.bbox[3] - f.bbox[1]))
     bbox = [int(b) for b in best_face_obj.bbox]
     h, w, _ = img.shape
@@ -215,7 +215,7 @@ def main():
     crop_path.parent.mkdir(parents=True, exist_ok=True)
     cv2.imwrite(str(crop_path), crop_img)
 
-    # 7. Confronto embeddings (Cosine Similarity)
+    # 7. Compare embeddings (Cosine Similarity)
     best_identity = None
     best_score = -1.0
 
@@ -228,10 +228,10 @@ def main():
                 best_score = score
                 best_identity = identity
 
-    print(f"[RESULT] Miglior match: '{best_identity}' con punteggio similarity = {best_score:.4f} (Threshold = {THRESHOLD})")
+    print(f"[RESULT] Best match: '{best_identity}' with similarity score = {best_score:.4f} (Threshold = {THRESHOLD})")
 
     if best_score >= THRESHOLD:
-        print(f"[SUCCESS] Volto RICONOSCIUTO: {best_identity} ({best_score * 100:.1f}% confidence)")
+        print(f"[SUCCESS] RECOGNIZED face: {best_identity} ({best_score * 100:.1f}% confidence)")
         notify_home_assistant("known_person_detected", {
             "identity": best_identity,
             "confidence": round(best_score, 4),
@@ -239,7 +239,7 @@ def main():
             "face_crop_path": "/local/snapshots/last_face_crop.jpg"
         })
     else:
-        print(f"[ALERT] Volto SCONOSCIUTO! Corrispondenza massima {best_score:.4f} sotto la soglia {THRESHOLD}.")
+        print(f"[ALERT] UNKNOWN face! Highest match {best_score:.4f} below threshold {THRESHOLD}.")
         archive_unknown_face(snapshot_file)
         notify_home_assistant("unknown_person_detected", {
             "highest_match": best_identity if best_identity else "none",

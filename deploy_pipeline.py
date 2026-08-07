@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-deploy_pipeline.py - Script di verifica ed esecuzione remota della pipeline su Home Assistant.
+deploy_pipeline.py - Script to verify and run the pipeline remotely on Home Assistant.
 """
 
 import ssl
@@ -33,18 +33,18 @@ def call_ha_api(endpoint: str, method: str = "GET", payload: dict = None):
 def main():
     print("=== [AGENTIC DEPLOYMENT & EVENT TEST] ===")
     
-    # 1. Verifica API Status
+    # 1. Check API status
     try:
         status = call_ha_api("/api/")
-        print(f"[SUCCESS] Connessione ad Home Assistant: {status.get('message')}")
+        print(f"[SUCCESS] Connected to Home Assistant: {status.get('message')}")
     except Exception as e:
-        print(f"[ERROR] Impossibile contattare Home Assistant: {e}", file=sys.stderr)
+        print(f"[ERROR] Unable to reach Home Assistant: {e}", file=sys.stderr)
         sys.exit(1)
 
-    # 2. Test Invio Evento Custom 'unknown_person_detected'
-    print("[INFO] Invio evento di test 'unknown_person_detected' sul bus eventi di Home Assistant...")
+    # 2. Test sending the custom event 'unknown_person_detected'
+    print("[INFO] Sending test event 'unknown_person_detected' on the Home Assistant event bus...")
     event_payload = {
-        "highest_match": "sconosciuto",
+        "highest_match": "unknown",
         "score": 0.18,
         "threshold": 0.45,
         "snapshot_path": "/config/www/snapshots/last_person.jpg",
@@ -52,12 +52,12 @@ def main():
     }
     try:
         res = call_ha_api("/api/events/unknown_person_detected", method="POST", payload=event_payload)
-        print(f"[SUCCESS] Risposta dall'Event Bus di Home Assistant: {res.get('message')}")
+        print(f"[SUCCESS] Response from the Home Assistant Event Bus: {res.get('message')}")
     except Exception as e:
-        print(f"[ERROR] Invio evento fallito: {e}", file=sys.stderr)
+        print(f"[ERROR] Event send failed: {e}", file=sys.stderr)
 
-    # 3. Test Invio Evento Custom 'known_person_detected'
-    print("[INFO] Invio evento di test 'known_person_detected' (volto riconosciuto 'sample_user')...")
+    # 3. Test sending the custom event 'known_person_detected'
+    print("[INFO] Sending test event 'known_person_detected' (recognized face 'sample_user')...")
     known_payload = {
         "identity": "sample_user",
         "confidence": 1.0,
@@ -65,11 +65,11 @@ def main():
     }
     try:
         res = call_ha_api("/api/events/known_person_detected", method="POST", payload=known_payload)
-        print(f"[SUCCESS] Risposta dall'Event Bus di Home Assistant: {res.get('message')}")
+        print(f"[SUCCESS] Response from the Home Assistant Event Bus: {res.get('message')}")
     except Exception as e:
-        print(f"[ERROR] Invio evento conosciuto fallito: {e}", file=sys.stderr)
+        print(f"[ERROR] Known-face event send failed: {e}", file=sys.stderr)
 
-    print("\n[COMPLETE] Test agentico completato con successo su Home Assistant!")
+    print("\n[COMPLETE] Agentic test completed successfully on Home Assistant!")
 
 
 if __name__ == "__main__":

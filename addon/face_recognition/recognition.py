@@ -1,10 +1,10 @@
 """
-recognition.py - Logica condivisa di riconoscimento facciale per l'add-on.
+recognition.py - Shared face-recognition logic for the add-on.
 
-Porting da face_recognition/analyze.py e face_recognition/create_embeddings.py
-del repo principale, senza gli hack di preload manuale delle .so di OpenCV
-(qui le dipendenze sono installate normalmente via pip nell'immagine Docker
-dell'add-on, che ha il proprio ambiente Python isolato e completo).
+Ported from face_recognition/analyze.py and face_recognition/create_embeddings.py
+in the main repo, without the manual OpenCV .so preload hacks
+(here the dependencies are installed normally via pip in the add-on Docker
+image, which has its own isolated and complete Python environment).
 """
 
 import os
@@ -25,11 +25,11 @@ from insightface.app import FaceAnalysis
 
 
 def load_known_embeddings(embeddings_dir: Path) -> dict:
-    """Carica in RAM tutti i file .npy presenti nella directory specificata."""
+    """Load into RAM all .npy files found in the specified directory."""
     known_faces = {}
     embeddings_dir = Path(embeddings_dir)
     if not embeddings_dir.exists():
-        print(f"[WARNING] Directory embedding non trovata: {embeddings_dir}")
+        print(f"[WARNING] Embeddings directory not found: {embeddings_dir}")
         return known_faces
 
     for npy_file in embeddings_dir.glob("*.npy"):
@@ -38,13 +38,13 @@ def load_known_embeddings(embeddings_dir: Path) -> dict:
             emb = emb / np.linalg.norm(emb)
             known_faces[npy_file.stem] = emb
         except Exception as e:
-            print(f"[ERROR] Impossibile caricare {npy_file}: {e}", file=sys.stderr)
+            print(f"[ERROR] Unable to load {npy_file}: {e}", file=sys.stderr)
 
     return known_faces
 
 
 def cosine_similarity(emb1: np.ndarray, emb2: np.ndarray) -> float:
-    """Calcola la cosine similarity tra due vettori."""
+    """Calculate cosine similarity between two vectors."""
     dot_product = np.dot(emb1, emb2)
     norm1 = np.linalg.norm(emb1)
     norm2 = np.linalg.norm(emb2)
@@ -54,7 +54,7 @@ def cosine_similarity(emb1: np.ndarray, emb2: np.ndarray) -> float:
 
 
 def crop_best_face(img: np.ndarray, faces: list, pad_ratio: float = 0.25) -> np.ndarray:
-    """Ritaglia il volto con bounding box più ampia, con padding proporzionale."""
+    """Crop the face with the largest bounding box, with proportional padding."""
     best_face_obj = max(faces, key=lambda f: (f.bbox[2] - f.bbox[0]) * (f.bbox[3] - f.bbox[1]))
     bbox = [int(b) for b in best_face_obj.bbox]
     h, w, _ = img.shape
@@ -66,12 +66,12 @@ def crop_best_face(img: np.ndarray, faces: list, pad_ratio: float = 0.25) -> np.
 
 
 def extract_frames_from_video(video_bytes: bytes, max_frames: int = 30) -> list:
-    """Decodifica un buffer video (mp4) in memoria e ne estrae i frame come array numpy.
+    """Decode an in-memory video buffer (mp4) and extract its frames as numpy arrays.
 
-    Scrive temporaneamente il buffer su un file temporaneo (necessario perché
-    cv2.VideoCapture non supporta la lettura diretta da bytes in memoria),
-    lo decodifica con OpenCV, e ritorna una lista di frame (fino a max_frames,
-    campionati uniformemente se il video ne contiene di più).
+    Temporarily writes the buffer to a temporary file (required because
+    cv2.VideoCapture does not support reading directly from in-memory bytes),
+    decodes it with OpenCV, and returns a list of frames (up to max_frames,
+    sampled uniformly if the video contains more).
     """
     temp_path = None
     try:
@@ -81,7 +81,7 @@ def extract_frames_from_video(video_bytes: bytes, max_frames: int = 30) -> list:
 
         cap = cv2.VideoCapture(temp_path)
         if not cap.isOpened():
-            print("[WARNING] Impossibile aprire il video temporaneo con OpenCV.", file=sys.stderr)
+            print("[WARNING] Unable to open the temporary video with OpenCV.", file=sys.stderr)
             return []
 
         frames = []
@@ -93,7 +93,7 @@ def extract_frames_from_video(video_bytes: bytes, max_frames: int = 30) -> list:
         cap.release()
 
         if not frames:
-            print("[WARNING] Nessun frame decodificato dal video.", file=sys.stderr)
+            print("[WARNING] No frames decoded from the video.", file=sys.stderr)
             return []
 
         if len(frames) > max_frames:
@@ -102,7 +102,7 @@ def extract_frames_from_video(video_bytes: bytes, max_frames: int = 30) -> list:
 
         return frames
     except Exception as e:
-        print(f"[ERROR] Errore durante l'estrazione dei frame dal video: {e}", file=sys.stderr)
+        print(f"[ERROR] Error while extracting video frames: {e}", file=sys.stderr)
         return []
     finally:
         if temp_path and os.path.exists(temp_path):
@@ -113,12 +113,12 @@ def extract_frames_from_video(video_bytes: bytes, max_frames: int = 30) -> list:
 
 
 def analyze_frames_for_best_match(engine: "FaceRecognitionEngine", frames: list, known_faces: dict) -> dict:
-    """Esegue il riconoscimento facciale su ogni frame e ritorna il miglior risultato complessivo.
+    """Run face recognition on each frame and return the best overall result.
 
-    Per ogni frame, rileva i volti e calcola la cosine similarity con ogni volto noto.
-    Ritorna un dict con: {"identity": str|None, "score": float, "frame": np.ndarray|None, "faces": list}
-    relativo al frame/volto con il punteggio di corrispondenza più alto in assoluto tra tutti i frame.
-    Se nessun frame contiene volti rilevabili, ritorna {"identity": None, "score": -1.0, "frame": None, "faces": []}.
+    For each frame, detect faces and compute cosine similarity with every known face.
+    Returns a dict with: {"identity": str|None, "score": float, "frame": np.ndarray|None, "faces": list}
+    corresponding to the frame/face with the highest absolute match score across all frames.
+    If no frame contains detectable faces, returns {"identity": None, "score": -1.0, "frame": None, "faces": []}.
     """
     best_identity = None
     best_score = -1.0
@@ -151,7 +151,7 @@ def analyze_frames_for_best_match(engine: "FaceRecognitionEngine", frames: list,
 
 
 class FaceRecognitionEngine:
-    """Wrapper su InsightFace FaceAnalysis, inizializzato una sola volta."""
+    """Wrapper around InsightFace FaceAnalysis, initialized only once."""
 
     def __init__(self, det_size: tuple = (320, 320)):
         self.app = FaceAnalysis(
@@ -162,11 +162,11 @@ class FaceRecognitionEngine:
         self.app.prepare(ctx_id=0, det_size=det_size)
 
     def analyze_image(self, img: np.ndarray) -> list:
-        """Rileva tutti i volti nell'immagine e ne estrae gli embedding."""
+        """Detect all faces in the image and extract their embeddings."""
         return self.app.get(img)
 
     def extract_best_embedding(self, img: np.ndarray):
-        """Ritorna l'embedding del volto con bounding box più grande, o None."""
+        """Return the embedding of the face with the largest bounding box, or None."""
         faces = self.analyze_image(img)
         if not faces:
             return None

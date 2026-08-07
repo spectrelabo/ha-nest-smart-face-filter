@@ -1,43 +1,43 @@
 # ==============================================================================
-# CONFIGURAZIONE HOME ASSISTANT PER FACE RECOGNITION (VALIDAZIONE INTERATTIVA)
+# HOME ASSISTANT CONFIGURATION FOR FACE RECOGNITION (INTERACTIVE VALIDATION)
 # ==============================================================================
-# Copia le sezioni seguenti nei file di configurazione di Home Assistant
+# Copy the following sections into your Home Assistant configuration files
 # (configuration.yaml / automations.yaml / input_text.yaml)
 
 # ------------------------------------------------------------------------------
-# 1. HELPER NOME NUOVO VOLTO (configuration.yaml)
+# 1. NEW FACE NAME HELPER (configuration.yaml)
 # ------------------------------------------------------------------------------
 input_text:
   nome_nuovo_volto:
-    name: "Nome Nuovo Volto da Registrare"
+    name: "Name of the New Face to Register"
     initial: ""
     icon: mdi:account-plus
 
 # ------------------------------------------------------------------------------
-# 2. AUTOMATION: Trigger Telecamera Nest + Riconoscimento via Event Media
+# 2. AUTOMATION: Nest Camera Trigger + Recognition via Event Media
 # ------------------------------------------------------------------------------
-# NOTA: Questo approccio usa i trigger "device" di Nest e il nuovo servizio
-# ha_nest_smart_face_filter.analyze_event (che recupera il clip MP4 dell'evento
-# via /api/nest/event_media), invece di camera.snapshot.
-# camera.snapshot su molte telecamere Nest restituisce frame neri/inutilizzabili
-# perché richiede uno stream WebRTC attivo — vedi:
-# https://github.com/home-assistant/core/issues/81ocalhost (problema noto HA/Nest).
+# NOTE: This approach uses Nest "device" triggers and the new service
+# ha_nest_smart_face_filter.analyze_event (which retrieves the event MP4 clip
+# via /api/nest/event_media), instead of camera.snapshot.
+# camera.snapshot on many Nest cameras returns black/useless frames
+# because it requires an active WebRTC stream — see:
+# https://github.com/home-assistant/core/issues/81ocalhost (known HA/Nest issue).
 automation:
   - id: nest_camera_face_recognition_pipeline
-    alias: "Nest Camera - Pipeline Riconoscimento Facciale (Event-Based)"
+    alias: "Nest Camera - Face Recognition Pipeline (Event-Based)"
     description: >-
-      Analizza l'evento Nest (persona/movimento) usando il clip video
-      dell'evento invece di camera.snapshot (che su molte telecamere Nest
-      restituisce frame neri/inutilizzabili).
+      Analyze the Nest event (person/motion) using the video clip
+      from the event instead of camera.snapshot (which on many Nest cameras
+      returns black/useless frames).
     mode: single
     max_exceeded: silent
     trigger:
       - platform: device
-        device_id: "IL_TUO_DEVICE_ID_QUI"  # Impostazioni > Dispositivi e servizi > Dispositivi > <tuo campanello> > controlla l'URL
+        device_id: "YOUR_DEVICE_ID_HERE"  # Settings > Devices & Services > Devices > <your doorbell> > check the URL
         domain: nest
         type: camera_person
       - platform: device
-        device_id: "IL_TUO_DEVICE_ID_QUI"
+        device_id: "YOUR_DEVICE_ID_HERE"
         domain: nest
         type: camera_motion
     action:
@@ -47,34 +47,34 @@ automation:
           event_id: "{{ trigger.event.data.nest_event_id }}"
 
 # ------------------------------------------------------------------------------
-# 4. NOTIFICA AZIONABILE: Notifica Persona Sconosciuta con Pulsanti di Validazione
+# 4. ACTIONABLE NOTIFICATION: Unknown Person Notification with Validation Buttons
 # ------------------------------------------------------------------------------
   - id: notify_on_unknown_person_detected_actionable
-    alias: "Sicurezza - Notifica Azionabile Persona Sconosciuta"
-    description: "Invia una notifica con pulsanti interattivi per decidere se registrare o ignorare il volto sconosciuto."
+    alias: "Security - Actionable Unknown Person Notification"
+    description: "Sends a notification with interactive buttons to decide whether to register or ignore the unknown face."
     trigger:
       - platform: event
         event_type: unknown_person_detected
     action:
       - service: notify.notify
         data:
-          title: "⚠️ Persona Sconosciuta Rilevata!"
-          message: "Rilevato volto sconosciuto sulla telecamera. Vuoi registrarlo tra i volti noti?"
+          title: "⚠️ Unknown Person Detected!"
+          message: "An unknown face was detected on the camera. Do you want to register it among the known faces?"
           data:
             url: "/lovelace/face-recognition"
             image: "/local/snapshots/current_pending_face.jpg"
             actions:
               - action: "LEARN_FACE_ACTION"
-                title: "👤 Registra Volto"
+                title: "👤 Register Face"
               - action: "DISMISS_FACE_ACTION"
-                title: "🚫 Ignora"
+                title: "🚫 Ignore"
 
 # ------------------------------------------------------------------------------
-# 5. GESTIONE VALIDAZIONE: Risposta al Pulsante "Registra Volto"
+# 5. VALIDATION HANDLING: Response to the "Register Face" button
 # ------------------------------------------------------------------------------
   - id: handle_learn_face_notification_action
-    alias: "Sicurezza - Registrazione Volto da Notifica"
-    description: "Esegue l'apprendimento del volto quando l'utente preme 'Registra Volto'."
+    alias: "Security - Face Registration from Notification"
+    description: "Runs face learning when the user presses 'Register Face'."
     trigger:
       - platform: event
         event_type: mobile_app_notification_action
@@ -83,5 +83,5 @@ automation:
     action:
       - service: persistent_notification.create
         data:
-          title: "👤 Validazione Volto Richiesta"
-          message: "Inserisci il nome del nuovo volto nel campo 'input_text.nome_nuovo_volto' sulla tua Dashboard per confermare l'acquisizione."
+          title: "👤 Face Validation Requested"
+          message: "Enter the name of the new face in the 'input_text.nome_nuovo_volto' field on your dashboard to confirm the capture."

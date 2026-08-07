@@ -20,18 +20,18 @@ analyze_snapshot:
 
 analyze_event:
   name: Analyze Event
-  description: Analizza un evento Nest (persona/movimento) usando il clip video dell'evento per un riconoscimento facciale più accurato rispetto a camera.snapshot.
+  description: Analyze a Nest event (person/motion) using the event video clip for more accurate face recognition than camera.snapshot.
   fields:
     device_id:
       name: Device ID
-      description: L'ID del dispositivo Nest (visibile nell'URL del dispositivo in Impostazioni > Dispositivi e servizi).
+      description: The Nest device ID (visible in the device URL under Settings > Devices & Services).
       example: "AVPHwEvXyz..."
       required: true
       selector:
         text:
     event_id:
       name: Event ID
-      description: L'ID dell'evento Nest (nest_event_id fornito dal trigger dell'automazione).
+      description: The Nest event ID (nest_event_id provided by the automation trigger).
       example: "CjY5Y..."
       required: true
       selector:
@@ -48,18 +48,18 @@ analyze_event:
 
 learn_face:
   name: Learn Face
-  description: Registra un nuovo volto noto a partire da un'immagine (es. uno snapshot archiviato in unknown_faces).
+  description: Register a new known face from an image (for example, a snapshot archived in unknown_faces).
   fields:
     image_path:
       name: Image Path
-      description: Percorso dell'immagine da cui estrarre il volto.
+      description: Path of the image from which to extract the face.
       example: /config/face_recognition/unknown_faces/unknown_20260101_000000.jpg
       required: true
       selector:
         text:
     name:
       name: Name
-      description: Nome dell'identità da assegnare al volto.
+      description: Name of the identity to assign to the face.
       example: mario_rossi
       required: true
       selector:
@@ -67,10 +67,10 @@ learn_face:
 
 skip_pending_face:
   name: Skip Pending Face
-  description: Rimanda in fondo alla coda il volto sconosciuto corrente, da rivedere più tardi.
+  description: Move the current unknown face to the back of the queue to review it later.
   fields: {}
 
 discard_pending_face:
   name: Discard Pending Face
-  description: Elimina definitivamente dalla coda il volto sconosciuto corrente.
+  description: Permanently delete the current unknown face from the queue.
   fields: {}

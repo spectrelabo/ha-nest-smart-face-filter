@@ -59,30 +59,29 @@ A zero-cloud, local-first, event-driven facial filter using **InsightFace (buffa
 +------------------------------------------------------------------+
 ```
 
-**Perché non basta un semplice `camera.snapshot` + confronto?** Perché il tuo
-Nest ci mette 2-3 secondi a svegliarsi e mandare il clip evento reale — ecco
-perché il trigger applica un piccolo `delay` prima di chiamare
-`analyze_event` (che scarica il clip via `/api/nest/event_media` invece dello
-snapshot live, quasi sempre nero/inutilizzabile sulle Nest).
+**Why isn't a simple `camera.snapshot` + comparison enough?** Because your
+Nest takes 2-3 seconds to wake up and provide the actual event clip — that's
+why the trigger applies a small `delay` before calling
+`analyze_event` (which downloads the clip via `/api/nest/event_media` instead
+of the live snapshot, which is almost always black/useless on Nest cameras).
 
-**La coda FIFO ("basket") dei volti sconosciuti.** Ogni volto sconosciuto
-rilevato viene archiviato come `unknown_<timestamp>.jpg` in
-`unknown_faces/`. Il sensore dell'integrazione fa polling di questa coda ogni
-60 secondi (non serve nessuna automazione che "accenda" un booleano): se hai
-perso la notifica push, o l'hai ignorata per sbaglio, il volto resta lì in
-attesa — la tab "Gestione Volti" fa esattamente da cestino/basket per tutto
-ciò che non hai ancora gestito, e mostra sempre il più vecchio non gestito
-(FIFO). "Scarta" e "Prossimo" lo rimuovono/avanzano subito, "Conferma"
-registra l'embedding e passa al successivo automaticamente.
+**The FIFO queue ("basket") for unknown faces.** Every detected unknown face
+is stored as `unknown_<timestamp>.jpg` in `unknown_faces/`. The integration
+sensor polls this queue every 60 seconds (no automation is needed to "turn on"
+a boolean): if you missed the push notification, or ignored it by mistake, the
+face stays there waiting — the "Face Management" tab works exactly like a
+basket for anything you have not handled yet, and always shows the oldest
+unhandled face (FIFO). "Discard" and "Next" remove/advance it immediately,
+while "Confirm" stores the embedding and automatically moves to the next one.
 
-**Storage & retention policy.** Per non riempire la SD card con migliaia di
-foto di sconosciuti/postini/gatti di passaggio, sia `unknown_faces/` sia
-`unknown_faces/learned/` sono cappate a `MAX_SAVED_FACES` file (default 30,
-configurabile via variabile d'ambiente dell'add-on) — oltre quel numero, i
-file più vecchi vengono eliminati automaticamente ad ogni nuovo salvataggio.
-Gli embedding appresi (`.npy`, poche centinaia di byte l'uno) restano invece
-per sempre in `embeddings/`, perché sono l'unica cosa che serve davvero al
-riconoscimento — non c'è motivo di buttarli via.
+**Storage & retention policy.** To avoid filling your SD card with thousands
+of photos of strangers/postmen/random cats, both `unknown_faces/` and
+`unknown_faces/learned/` are capped at `MAX_SAVED_FACES` files (default 30,
+configurable through an add-on environment variable) — above that number, the
+oldest files are automatically deleted on every new save. Learned embeddings
+(`.npy`, a few hundred bytes each) instead stay forever in `embeddings/`,
+because they are the only thing the recognizer actually needs — there is no
+reason to throw them away.
 
 ---
 
@@ -133,91 +132,90 @@ riconoscimento — non c'è motivo di buttarli via.
 
 ---
 
-## Installazione
+## Installation
 
-### 1. Aggiungi questo repository come repository di Add-on
+### 1. Add this repository as an Add-on repository
 
-In Home Assistant: Impostazioni → Add-on → Add-on Store → menu (⋮) in alto
-a destra → Repository → incolla:
+In Home Assistant: Settings → Add-ons → Add-on Store → top-right menu (⋮)
+→ Repositories → paste:
 
 ```
 https://github.com/spectrelabo/ha-nest-smart-face-filter
 ```
 
-### 2. Installa l'Add-on "Face Recognition"
+### 2. Install the "Face Recognition" add-on
 
-Cerca "Face Recognition" nello store degli Add-on (sezione Local Add-ons),
-installalo e avvialo. Verifica nei log dell'add-on che riporti
-"Avvio Face Recognition add-on su porta 8080...".
+Search for "Face Recognition" in the Add-on Store (Local Add-ons
+section), install it, and start it. Check the add-on logs and make sure they
+show "Starting Face Recognition add-on on port 8080...".
 
-### 3. Installa l'integrazione HACS
+### 3. Install the HACS integration
 
-Aggiungi questo stesso repository come repository HACS personalizzato
-(categoria Integration), installa "HA Nest Smart Face Filter", riavvia
-Home Assistant, poi aggiungi l'integrazione da Impostazioni → Dispositivi e
-Servizi → Aggiungi integrazione.
+Add this same repository as a custom HACS repository
+(category: Integration), install "HA Nest Smart Face Filter", restart
+Home Assistant, then add the integration from Settings → Devices & Services
+→ Add Integration.
 
-Se il campo "Addon Host" mostrato durante la configurazione non corrisponde
-all'hostname reale del tuo add-on, puoi verificarlo in Impostazioni →
-Add-on → Face Recognition → Informazioni → Hostname, e aggiornarlo dalle
-opzioni dell'integrazione.
+If the "Addon Host" field shown during setup does not match your add-on's
+actual hostname, you can check it in Settings → Add-ons → Face Recognition
+→ Info → Hostname, then update it from the integration options.
 
-### 4. Configura le automazioni
+### 4. Configure the automations
 
-Copia le automazioni di esempio da `ha_configuration_snippet.yaml` nel tuo
-`configuration.yaml` (o tramite l'editor Automazioni), adattando le entity
-delle tue telecamere Nest.
+Copy the sample automations from `ha_configuration_snippet.yaml` into your
+`configuration.yaml` (or through the Automations editor), adapting the entity
+references for your Nest cameras.
 
-### 5. Configura la dashboard "Gestione Volti" (coda dei volti sconosciuti)
+### 5. Configure the "Face Management" dashboard (unknown-face queue)
 
-Copia `lovelace_face_validation_card.yaml` in una view della tua dashboard
-(modalità YAML: dashboard → ⋮ → Modifica dashboard → ⋮ → Modifica in YAML).
-Ricordati che serve un array `views:` — se questa è l'unica view, avvolgi il
-contenuto del file con `views:` seguito da un trattino `- title: ...` prima
-di incollarlo, altrimenti HA si lamenta con "Expected an array value".
+Copy `lovelace_face_validation_card.yaml` into a view of your dashboard
+(YAML mode: dashboard → ⋮ → Edit dashboard → ⋮ → Edit in YAML).
+Remember that HA expects a `views:` array — if this is your only view, wrap
+the file contents with `views:` followed by a dash `- title: ...` before
+pasting, otherwise HA will complain with "Expected an array value".
 
-⚠️ **Attenzione se personalizzi la card:** la card nativa Lovelace
-`type: picture` **non valuta i template Jinja** nel campo `image:` — se
-provi a costruire l'URL dinamicamente lì dentro, il browser riceverà la
-stringa del template alla lettera e non vedrai mai la foto. Per questo la
-card foto usa `type: markdown` con un tag `<img>` inline, che i template li
-supporta per davvero.
+⚠️ **Heads-up if you customize the card:** the native Lovelace
+`type: picture` card **does not evaluate Jinja templates** in the `image:`
+field — if you try to build the URL dynamically there, the browser will
+receive the literal template string and you will never see the photo. That is
+why the photo card uses `type: markdown` with an inline `<img>` tag, which
+actually supports templates.
 
-### 6. Aggiungi lo script e l'helper mancanti (workflow "Conferma")
+### 6. Add the missing script and helper ("Confirm" workflow)
 
-Il tasto "Conferma" nella dashboard chiama `script.conferma_gestione_volto`
-e legge il nome digitato da `input_text.nome_nuovo_volto`. **Nessuno dei due
-esiste di default in Home Assistant** — vanno aggiunti a mano copiando il
-contenuto di `ha_backend_logic.yaml` (script) e la sezione 1 di
-`ha_configuration_snippet.yaml` (helper) nel tuo `configuration.yaml` (o nei
-rispettivi `scripts.yaml`/`input_text.yaml`, se usi `!include`). "Scarta" e
-"Prossimo" invece funzionano già subito, perché chiamano servizi registrati
-direttamente dall'integrazione — non ti bastano ma se ti scordi lo script,
-"Conferma" sembrerà "funzionare" (nessun errore visibile) ma non registrerà
-mai nessun volto.
+The "Confirm" button on the dashboard calls `script.conferma_gestione_volto`
+and reads the typed name from `input_text.nome_nuovo_volto`. **Neither exists
+by default in Home Assistant** — you must add them manually by copying the
+contents of `ha_backend_logic.yaml` (script) and section 1 of
+`ha_configuration_snippet.yaml` (helper) into your `configuration.yaml` (or
+into the corresponding `scripts.yaml`/`input_text.yaml` files if you use
+`!include`). "Discard" and "Next" already work immediately because they call
+services registered directly by the integration — useful, but if you forget the
+script, "Confirm" will appear to "work" (no visible error) while never
+actually registering the face.
 
-Dopo aver incollato, **riavvia Home Assistant** (obbligatorio se aggiungi
-nuove chiavi di primo livello come `input_text:`/`script:` direttamente in
-`configuration.yaml`; se usi già `!include scripts.yaml`, un "Ricarica
-script" dal menu Automazioni e scene basta).
+After pasting, **restart Home Assistant** (mandatory if you add new
+top-level keys like `input_text:`/`script:` directly in `configuration.yaml`;
+if you already use `!include scripts.yaml`, a "Reload Scripts" from the
+Automations & Scenes menu is enough).
 
-### 7. Branding: metti la faccia (letteralmente) al progetto
+### 7. Branding: literally put a face on the project
 
-Vuoi che l'add-on e l'integrazione smettano di avere l'iconcina generica
-grigia? Servono due PNG per componente:
+Want the add-on and integration to stop showing the generic gray icon?
+You need two PNGs per component:
 
-**Per l'add-on** (`addon/face_recognition/`):
+**For the add-on** (`addon/face_recognition/`):
 ```
 addon/face_recognition/
 ├── config.yaml
 ├── icon.png   # 128x128px, quadrato 1:1
 └── logo.png   # 250x100px (aspect ratio libero)
 ```
-Basta metterli alla radice della cartella dell'add-on, accanto a
-`config.yaml` — nessuna configurazione aggiuntiva richiesta, il Supervisor
-li rileva da solo al prossimo aggiornamento.
+Just place them at the root of the add-on folder, next to
+`config.yaml` — no extra configuration required, the Supervisor will detect
+them automatically on the next update.
 
-**Per l'integrazione HACS** (`custom_components/ha_nest_smart_face_filter/`):
+**For the HACS integration** (`custom_components/ha_nest_smart_face_filter/`):
 ```
 custom_components/ha_nest_smart_face_filter/
 ├── manifest.json
@@ -227,83 +225,82 @@ custom_components/ha_nest_smart_face_filter/
     ├── dark_icon.png   # opzionale, variante dark mode
     └── logo@2x.png     # opzionale, variante HiDPI
 ```
-Le integrazioni custom possono ormai includere le proprie immagini di brand
-senza dover fare una PR al repository centrale
-[`home-assistant/brands`](https://github.com/home-assistant/brands) — HACS e
-il frontend le pescano direttamente da qui. Se il repository brands non
-riconosce ancora il dominio, l'icona resta quella di default finché non
-aggiungi la cartella `brand/`: non è un bug, è solo pigrizia del cache.
+Custom integrations can now include their own branding images without
+opening a PR against the central
+[`home-assistant/brands`](https://github.com/home-assistant/brands) repository
+— HACS and the frontend pull them directly from here. If the brands repository
+still does not recognize the domain, the icon stays the default one until you
+add the `brand/` folder: not a bug, just cache laziness.
 
 ---
 
 ## FAQ
 
-**La dashboard "Gestione Volti" resta vuota anche se so che è stato rilevato
-un volto sconosciuto.**
-Controlla che il sensore `sensor.<slug>_volti_in_attesa` esista e non sia
-`unavailable`. Se l'integrazione è ferma alla vecchia architettura basata su
-`input_boolean.volto_in_attesa`, sappi che **niente lo accende mai** — né
-l'add-on (che spara solo eventi, non tocca stati) né le automazioni di
-esempio. Aggiorna alla v2.2.0+ (sensore che fa polling diretto della coda)
-per eliminare questo problema alla radice.
+**The "Face Management" dashboard stays empty even though I know an
+unknown face was detected.**
+Check that the `sensor.<slug>_volti_in_attesa` sensor exists and is not
+`unavailable`. If your integration is still stuck on the old
+`input_boolean.volto_in_attesa` architecture, note that **nothing ever turns
+it on** — not the add-on (which only fires events, it does not change states)
+nor the sample automations. Update to v2.2.0+ (sensor polling the queue
+directly) to remove this issue at the root.
 
-**Ho premuto "Conferma" ma il volto non sparisce dalla coda e non trovo
-l'embedding.**
-Vedi punto 6 sopra: quasi certamente ti manca `script.conferma_gestione_volto`
-o `input_text.nome_nuovo_volto`. Verifica in Impostazioni → Automazioni e
-scene → Script che lo script esista davvero.
+**I pressed "Confirm" but the face does not disappear from the queue and I
+can't find the embedding.**
+See point 6 above: you are almost certainly missing
+`script.conferma_gestione_volto` or `input_text.nome_nuovo_volto`. Verify in
+Settings → Automations & Scenes → Scripts that the script really exists.
 
-**La foto nella card non si vede / icona rotta.**
-Se hai personalizzato la card con `type: picture` e un URL templated, non
-funzionerà mai (vedi punto 5). Usa la card `markdown` fornita nel repo.
+**The photo in the card is not visible / broken icon.**
+If you customized the card with `type: picture` and a templated URL, it will
+never work (see point 5). Use the `markdown` card provided in the repo.
 
-**Ho provato ad aprire `/local/...` a mano e mi dà timeout, non 404.**
-Controlla se stai passando da un reverse proxy/dominio esterno che inoltra
-solo la porta 443 — in quel caso l'URL "interno" con `:8123` esplicito non è
-raggiungibile dall'esterno. Usa lo stesso indirizzo (senza porta) che usi
-normalmente per aprire la dashboard.
+**I tried opening `/local/...` manually and I get a timeout, not a 404.**
+Check whether you are going through a reverse proxy/external domain that only
+forwards port 443 — in that case the "internal" URL with explicit `:8123` is
+not reachable from outside. Use the same address (without the port) that you
+normally use to open the dashboard.
 
-**HACS non trova l'aggiornamento a una nuova versione.**
-Prova un refresh forzato: HACS → il tuo repository → menu ⋮ → "Ridownload".
-A volte la cache di HACS ci mette un po' a notare le nuove release.
+**HACS does not find the update to a new version.**
+Try a forced refresh: HACS → your repository → menu ⋮ → "Redownload".
+Sometimes the HACS cache takes a bit to notice new releases.
 
-**Perché il Nest ci mette 2-3 secondi a "svegliarsi"?**
-È un limite del dispositivo/API Nest, non nostro — per questo il trigger
-applica un breve `delay` prima di chiamare `analyze_event`, così il clip
-evento reale (non uno snapshot nero) è già disponibile quando lo richiediamo.
+**Why does Nest take 2-3 seconds to "wake up"?**
+That is a Nest device/API limitation, not ours — the trigger adds a short
+`delay` before calling `analyze_event` so the real event clip (not a black
+snapshot) is already available when we request it.
 
-**Se perdo/ignoro la notifica, il volto sconosciuto è perso per sempre?**
-No: resta nella coda FIFO (il "basket") finché non lo gestisci — la tab
-Gestione Volti mostrerà sempre il più vecchio non ancora gestito ad ogni
-apertura, anche giorni dopo (fino al limite di retention, vedi sopra).
+**If I miss/ignore the notification, is the unknown face gone forever?**
+No: it stays in the FIFO queue (the "basket") until you handle it — the Face
+Management tab will always show the oldest not-yet-handled one whenever you
+open it, even days later (until the retention limit, see above).
 
-**Posso usare più telecamere Nest con la stessa pipeline?**
-Sì, basta duplicare i trigger `device` nell'automazione della pipeline per
-ogni `device_id` aggiuntivo; l'add-on e la coda sono già condivisi e non
-serve nessuna istanza separata.
+**Can I use multiple Nest cameras with the same pipeline?**
+Yes, just duplicate the `device` triggers in the pipeline automation for each
+extra `device_id`; the add-on and the queue are already shared, so no separate
+instance is needed.
 
 ---
 
 ## Known Issues / Troubleshooting
 
-- **Crash aprendo le Opzioni dell'integrazione** (`AttributeError: property
-  'config_entry' ... has no setter`): bug corretto — su Home Assistant
-  2024.11+, `OptionsFlow.config_entry` è diventata una property read-only
-  gestita dal core; versioni del codice precedenti a questa correzione
-  assegnavano `self.config_entry` manualmente in `__init__`, causando il
-  crash. Aggiorna all'ultima versione dell'integrazione.
-- **Ritardo fino a 60s nell'aggiornamento della dashboard**: il sensore fa
-  polling della coda ogni 60 secondi per non martellare l'add-on. Dopo
-  Conferma/Scarta/Prossimo il refresh è comunque immediato (chiamata diretta
-  al coordinator), il ritardo si nota solo per un volto nuovo rilevato
-  passivamente.
-- **`type: picture` di Lovelace non supporta template Jinja**: limite nativo
-  di Home Assistant, non un nostro bug — usa `markdown` con `<img>` come
-  fatto nel file fornito, oppure una custom card come `html-template-card`
-  se ti serve qualcosa di più elaborato.
-- **`camera.snapshot` su Nest spesso restituisce frame neri**: per questo la
-  pipeline usa `analyze_event` (clip evento reale via
-  `/api/nest/event_media`) invece dello snapshot live.
+- **Crash when opening the integration Options** (`AttributeError: property
+  'config_entry' ... has no setter`): fixed bug — on Home Assistant
+  2024.11+, `OptionsFlow.config_entry` became a core-managed read-only
+  property; code versions before this fix assigned `self.config_entry`
+  manually in `__init__`, causing the crash. Update to the latest integration
+  version.
+- **Up to 60s delay in dashboard updates**: the sensor polls the queue
+  every 60 seconds to avoid hammering the add-on. After Confirm/Discard/Next
+  the refresh is still immediate (direct coordinator call); the delay is only
+  noticeable for a newly detected face that arrives passively.
+- **Lovelace `type: picture` does not support Jinja templates**: native
+  Home Assistant limitation, not our bug — use `markdown` with `<img>` as done
+  in the provided file, or a custom card such as `html-template-card` if you
+  need something fancier.
+- **`camera.snapshot` on Nest often returns black frames**: that is why
+  the pipeline uses `analyze_event` (real event clip via
+  `/api/nest/event_media`) instead of the live snapshot.
 
 ---
 

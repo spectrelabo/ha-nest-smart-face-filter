@@ -1,10 +1,10 @@
 """
-analyze_server.py - Server Flask dell'add-on Face Recognition.
+analyze_server.py - Flask server for the Face Recognition add-on.
 
-Espone via HTTP la stessa logica del vecchio face_recognition/analyze.py,
-ma in esecuzione dentro il container Docker dedicato dell'add-on (dove
-insightface/opencv sono installati normalmente via pip), invece che via
-shell_command dentro il container di Home Assistant Core.
+Exposes over HTTP the same logic as the old face_recognition/analyze.py,
+but running inside the add-on's dedicated Docker container (where
+insightface/opencv are installed normally via pip), instead of via
+shell_command inside the Home Assistant Core container.
 """
 
 import os
@@ -44,7 +44,7 @@ HA_BASE_URL = os.getenv("HA_BASE_URL", "http://supervisor/core")
 HA_BEARER_TOKEN = os.getenv("SUPERVISOR_TOKEN", "")
 
 app = Flask(__name__)
-_engine = None  # inizializzato lazy in get_engine() per non caricare il modello negli unit test
+_engine = None  # lazily initialized in get_engine() to avoid loading the model in unit tests
 
 
 def get_engine() -> FaceRecognitionEngine:
@@ -55,9 +55,9 @@ def get_engine() -> FaceRecognitionEngine:
 
 
 def notify_home_assistant(event_name: str, payload: dict) -> None:
-    """Invia un evento personalizzato a Home Assistant via Supervisor REST API."""
+    """Send a custom event to Home Assistant through the Supervisor REST API."""
     if not HA_BEARER_TOKEN:
-        print("[INFO] Nessun SUPERVISOR_TOKEN disponibile. Notifica ignorata.")
+        print("[INFO] No SUPERVISOR_TOKEN available. Notification skipped.")
         return
 
     url = f"{HA_BASE_URL}/api/events/{event_name}"
@@ -68,16 +68,16 @@ def notify_home_assistant(event_name: str, payload: dict) -> None:
     try:
         response = requests.post(url, json=payload, headers=headers, timeout=5)
         if response.status_code in (200, 201):
-            print(f"[SUCCESS] Evento '{event_name}' inviato (status: {response.status_code}).")
+            print(f"[SUCCESS] Event '{event_name}' sent (status: {response.status_code}).")
         else:
-            print(f"[WARNING] Risposta HA API non prevista ({response.status_code}): {response.text}")
+            print(f"[WARNING] Unexpected HA API response ({response.status_code}): {response.text}")
     except Exception as e:
-        print(f"[ERROR] Impossibile inviare evento a Home Assistant: {e}", file=sys.stderr)
+        print(f"[ERROR] Unable to send event to Home Assistant: {e}", file=sys.stderr)
 
 
 def _enforce_file_cap(directory: Path, pattern: str, max_files: int) -> None:
-    """Mantiene al massimo `max_files` file corrispondenti a `pattern` nella
-    directory, eliminando i più vecchi (per mtime) in eccesso."""
+    """Keep at most `max_files` files matching `pattern` in the directory,
+    deleting the oldest ones (by mtime) when over the limit."""
     saved_files = sorted(Path(directory).glob(pattern), key=os.path.getmtime)
     if len(saved_files) > max_files:
         for old_file in saved_files[:-max_files]:
@@ -85,7 +85,7 @@ def _enforce_file_cap(directory: Path, pattern: str, max_files: int) -> None:
 
 
 def archive_unknown_face(snapshot_file: Path) -> None:
-    """Archivia lo snapshot del volto sconosciuto per l'apprendimento futuro."""
+    """Archive the unknown-face snapshot for future learning."""
     if not SAVE_UNKNOWN_FACES:
         return
 
@@ -99,11 +99,11 @@ def archive_unknown_face(snapshot_file: Path) -> None:
         shutil.copy(snapshot_file, dest_file)
         _enforce_file_cap(unknown_dir, "unknown_*.jpg", MAX_SAVED_FACES)
     except Exception as e:
-        print(f"[ERROR] Errore durante l'archiviazione dello snapshot: {e}", file=sys.stderr)
+        print(f"[ERROR] Error while archiving the snapshot: {e}", file=sys.stderr)
 
 
 def archive_unknown_frame(frame: np.ndarray) -> None:
-    """Archivia un frame numpy come immagine del volto sconosciuto per l'apprendimento futuro."""
+    """Archive a numpy frame as an unknown-face image for future learning."""
     if not SAVE_UNKNOWN_FACES:
         return
 
@@ -117,11 +117,11 @@ def archive_unknown_frame(frame: np.ndarray) -> None:
         cv2.imwrite(str(dest_file), frame)
         _enforce_file_cap(unknown_dir, "unknown_*.jpg", MAX_SAVED_FACES)
     except Exception as e:
-        print(f"[ERROR] Errore durante l'archiviazione del frame sconosciuto: {e}", file=sys.stderr)
+        print(f"[ERROR] Error while archiving the unknown frame: {e}", file=sys.stderr)
 
 
 def _unknown_face_files() -> list:
-    """Ritorna i file volto sconosciuto in attesa (esclusa learned/), dal più vecchio."""
+    """Return the pending unknown-face files (excluding learned/), oldest first."""
     unknown_dir = Path(UNKNOWN_FACES_DIR)
     if not unknown_dir.is_dir():
         return []
@@ -129,8 +129,8 @@ def _unknown_face_files() -> list:
 
 
 def _refresh_current_pending_pointer(current_file) -> None:
-    """Copia il file corrente della coda nel percorso web-accessibile fisso,
-    o lo rimuove se la coda è vuota."""
+    """Copy the current queue file to the fixed web-accessible path,
+    or remove it if the queue is empty."""
     pointer_path = Path(CURRENT_PENDING_FACE_PATH)
     try:
         pointer_path.parent.mkdir(parents=True, exist_ok=True)
@@ -153,7 +153,7 @@ def _refresh_current_pending_pointer(current_file) -> None:
 
 
 def _queue_state() -> dict:
-    """Calcola lo stato corrente della coda FIFO dei volti sconosciuti."""
+    """Compute the current state of the FIFO queue of unknown faces."""
     files = _unknown_face_files()
     if not files:
         _refresh_current_pending_pointer(None)
@@ -245,7 +245,7 @@ def analyze():
     if not faces:
         notify_home_assistant("no_face_detected", {
             "snapshot_path": str(snapshot_file),
-            "message": "Persona rilevata da Nest ma nessun volto estraibile dallo snapshot.",
+            "message": "Person detected by Nest but no extractable face found in the snapshot.",
         })
         return jsonify({"identity": None, "score": -1.0, "matched": False})
 
@@ -286,7 +286,7 @@ def analyze():
 
 @app.route("/analyze_event", methods=["POST"])
 def analyze_event():
-    """Analizza un evento Nest estraendo e processando tutti i frame del clip video."""
+    """Analyze a Nest event by extracting and processing all frames from the video clip."""
     data = request.get_json(silent=True) or {}
     device_id = data.get("device_id")
     event_id = data.get("event_id")
@@ -322,7 +322,7 @@ def analyze_event():
         notify_home_assistant("no_face_detected", {
             "device_id": device_id,
             "event_id": event_id,
-            "message": "Persona rilevata da Nest ma nessun volto estraibile dal clip evento.",
+            "message": "Person detected by Nest but no extractable face found in the event clip.",
         })
         return jsonify({"identity": None, "score": -1.0, "matched": False})
 
@@ -390,7 +390,7 @@ def learn():
         shutil.move(str(image_file), str(processed_dir / f"{identity_name}_{image_file.name}"))
         _enforce_file_cap(processed_dir, "*.jpg", MAX_SAVED_FACES)
     except Exception as e:
-        print(f"[WARNING] Impossibile archiviare la foto sorgente: {e}", file=sys.stderr)
+        print(f"[WARNING] Unable to archive the source photo: {e}", file=sys.stderr)
 
     return jsonify({"status": "learned", "identity": identity_name})
 

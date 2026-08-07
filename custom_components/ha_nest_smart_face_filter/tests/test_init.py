@@ -1,4 +1,4 @@
-"""Richiede pytest-homeassistant-custom-component installato nel venv di sviluppo."""
+"""Requires pytest-homeassistant-custom-component installed in the development venv."""
 import sys
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch

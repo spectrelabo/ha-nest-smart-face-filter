@@ -1,7 +1,7 @@
 name: "Face Recognition"
 version: "1.2.0"
 slug: "face_recognition"
-description: "Riconoscimento facciale locale (InsightFace) per ha-nest-smart-face-filter"
+description: "Local face recognition (InsightFace) for ha-nest-smart-face-filter"
 url: "https://github.com/spectrelabo/ha-nest-smart-face-filter"
 arch:
   - amd64
@@ -12,7 +12,7 @@ boot: auto
 ports:
   8080/tcp: null
 ports_description:
-  8080/tcp: "API REST interna (analyze/learn/health)"
+  8080/tcp: "Internal REST API (analyze/learn/health)"
 map:
   - config:rw
 hassio_api: true

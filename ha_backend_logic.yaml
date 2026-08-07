@@ -1,30 +1,30 @@
 # ==============================================================================
-# LOGICA DI BACKEND DA INSERIRE IN HOME ASSISTANT
+# BACKEND LOGIC TO ADD IN HOME ASSISTANT
 # ==============================================================================
-# Aggiungi queste sezioni in configuration.yaml o nei rispettivi file suddivisi
+# Add these sections to configuration.yaml or to the corresponding split files
 # (scripts.yaml, input_text.yaml)
 #
-# NOTA: a partire da questa versione, lo stato "volto in attesa" non è più
-# gestito da input_boolean.volto_in_attesa (rimosso), ma dal sensore
-# sensor.<slug>_volti_in_attesa esposto dall'integrazione (vedi
-# lovelace_face_validation_card.yaml). Scarta/Prossimo chiamano direttamente
-# i servizi ha_nest_smart_face_filter.discard_pending_face /
-# skip_pending_face, quindi non serve più lo script "scarta_gestione_volto".
+# NOTE: starting from this version, the "pending face" state is no longer
+# managed by input_boolean.volto_in_attesa (removed), but by the sensor
+# sensor.<slug>_volti_in_attesa exposed by the integration (see
+# lovelace_face_validation_card.yaml). Discard/Next call the
+# ha_nest_smart_face_filter.discard_pending_face /
+# skip_pending_face services directly, so the "scarta_gestione_volto" script is no longer needed.
 
 script:
   # ----------------------------------------------------------------------------
-  # SCRIPT: Conferma e Registra il volto corrente in coda
+  # SCRIPT: Confirm and register the current queued face
   # ----------------------------------------------------------------------------
   conferma_gestione_volto:
-    alias: "Conferma Registrazione Volto"
+    alias: "Confirm Face Registration"
     sequence:
-      # 1. Registra il volto corrente in coda (path preso dal sensore, non hardcoded)
+      # 1. Register the current queued face (path taken from the sensor, not hardcoded)
       - service: ha_nest_smart_face_filter.learn_face
         data:
           image_path: >-
             {{ state_attr('sensor.nest_smart_face_filter_volti_in_attesa', 'current_path') }}
           name: "{{ states('input_text.nome_nuovo_volto') }}"
-      # 2. Resetta l'input text per la prossima volta
+      # 2. Reset the input text for the next time
       - service: input_text.set_value
         target:
           entity_id: input_text.nome_nuovo_volto
