@@ -51,3 +51,24 @@ async def test_coordinator_marks_unavailable_when_addon_unreachable(hass):
         await coordinator.async_refresh()
 
         assert coordinator.last_update_success is False
+
+
+def test_pending_faces_sensor_name_yields_slug_prefixed_entity_id():
+    """The entity's derived object_id must be <entry_title_slug>_volti_in_attesa
+    (e.g. sensor.nest_smart_face_filter_volti_in_attesa for the default entry
+    title "Nest Smart Face Filter"), per the plan's documented entity contract,
+    not a bare "volti_in_attesa" that would collide across config entries."""
+    from homeassistant.util import slugify
+
+    from custom_components.ha_nest_smart_face_filter.sensor import PendingFacesSensor
+
+    coordinator = MagicMock()
+    entry = MagicMock()
+    entry.title = "Nest Smart Face Filter"
+    entry.entry_id = "abc123"
+
+    sensor = PendingFacesSensor(coordinator, entry)
+
+    assert sensor.name == "Nest Smart Face Filter Volti in Attesa"
+    assert slugify(sensor.name) == "nest_smart_face_filter_volti_in_attesa"
+    assert sensor.unique_id == "abc123_pending_faces"

@@ -58,11 +58,16 @@ async def async_setup_entry(
 class PendingFacesSensor(CoordinatorEntity, SensorEntity):
     """Sensore che espone il conteggio dei volti sconosciuti in attesa di revisione."""
 
-    _attr_name = "Volti in Attesa"
     _attr_icon = "mdi:face-recognition"
 
     def __init__(self, coordinator: PendingFacesCoordinator, entry: ConfigEntry) -> None:
         super().__init__(coordinator)
+        # Prefix the friendly name with the config entry's title so Home Assistant's
+        # default object-id derivation yields sensor.<slug>_volti_in_attesa (e.g.
+        # sensor.nest_smart_face_filter_volti_in_attesa for the default entry title
+        # "Nest Smart Face Filter"), matching the documented entity_id contract
+        # instead of colliding on a bare "sensor.volti_in_attesa" across entries.
+        self._attr_name = f"{entry.title} Volti in Attesa"
         self._attr_unique_id = f"{entry.entry_id}_pending_faces"
 
     @property
