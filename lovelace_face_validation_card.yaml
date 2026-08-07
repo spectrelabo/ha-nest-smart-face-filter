@@ -2,18 +2,26 @@ title: "Riconoscimento Facciale - Nest"
 icon: mdi:face-recognition
 path: face-recognition
 cards:
-  # CARD 1: Quando C'è un volto in attesa (input_boolean.volto_in_attesa == 'on')
+  # CARD 1: quando c'è almeno un volto sconosciuto in coda
+  # NOTA: verifica l'entity_id esatto del sensore nella tua istanza
+  # (dipende dal nome dato all'integrazione in fase di configurazione).
   - type: conditional
     conditions:
-      - entity: input_boolean.volto_in_attesa
-        state: "on"
+      - entity: sensor.nest_smart_face_filter_volti_in_attesa
+        state_not: "0"
     card:
       type: vertical-stack
       title: "Validazione Volto Rilevato"
       cards:
         - type: picture
-          image: /local/snapshots/last_face_crop.jpg
+          image: >-
+            {{ state_attr('sensor.nest_smart_face_filter_volti_in_attesa', 'image_url') }}?t={{ as_timestamp(states.sensor.nest_smart_face_filter_volti_in_attesa.last_changed) }}
           title: "Anteprima Volto Rilevato"
+
+        - type: markdown
+          content: >-
+            **{{ states('sensor.nest_smart_face_filter_volti_in_attesa') }}**
+            volto/i in attesa di gestione
 
         - type: entities
           title: "Pannello di Validazione"
@@ -36,17 +44,25 @@ cards:
               action_name: "SCARTA"
               tap_action:
                 action: call-service
-                service: script.scarta_gestione_volto
+                service: ha_nest_smart_face_filter.discard_pending_face
 
-  # CARD 2: Quando NON ci sono volti in attesa (input_boolean.volto_in_attesa == 'off')
+            - type: button
+              name: "Prossimo"
+              icon: mdi:skip-next
+              action_name: "PROSSIMO"
+              tap_action:
+                action: call-service
+                service: ha_nest_smart_face_filter.skip_pending_face
+
+  # CARD 2: quando la coda è vuota
   - type: conditional
     conditions:
-      - entity: input_boolean.volto_in_attesa
-        state: "off"
+      - entity: sensor.nest_smart_face_filter_volti_in_attesa
+        state: "0"
     card:
       type: markdown
       title: "Sistema di Riconoscimento Attivo"
       content: |
         ### Nessun volto in attesa di validazione
 
-        Tutti i rilevamenti sono stati gestiti. Quando la telecamera rilevera un nuovo volto sconosciuto, comparira qui la scheda per la registrazione.
+        Tutti i rilevamenti sono stati gestiti. Quando la telecamera rileverà un nuovo volto sconosciuto, comparirà qui la scheda per la registrazione.
