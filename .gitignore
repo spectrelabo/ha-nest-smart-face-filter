@@ -5,4 +5,7 @@ __pycache__/
 *.jpg
 *.jpeg
 *.png
+!custom_components/ha_nest_smart_face_filter/brand/*.png
+!addon/face_recognition/icon.png
+!addon/face_recognition/logo.png
 .superpowers
