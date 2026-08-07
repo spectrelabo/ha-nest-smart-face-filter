@@ -10,6 +10,7 @@ shell_command dentro il container di Home Assistant Core.
 import os
 import shutil
 import sys
+import time
 from datetime import datetime
 from pathlib import Path
 
@@ -33,6 +34,10 @@ SAVE_UNKNOWN_FACES = os.getenv("SAVE_UNKNOWN_FACES", "true").lower() == "true"
 UNKNOWN_FACES_DIR = os.getenv("UNKNOWN_FACES_DIR", "/config/face_recognition/unknown_faces")
 MAX_SAVED_FACES = int(os.getenv("MAX_SAVED_FACES", "30"))
 CROP_OUTPUT_PATH = os.getenv("CROP_OUTPUT_PATH", "/config/www/snapshots/last_face_crop.jpg")
+CURRENT_PENDING_FACE_PATH = os.getenv(
+    "CURRENT_PENDING_FACE_PATH", "/config/www/snapshots/current_pending_face.jpg"
+)
+CURRENT_PENDING_FACE_URL = "/local/snapshots/current_pending_face.jpg"
 
 HA_BASE_URL = os.getenv("HA_BASE_URL", "http://supervisor/core")
 HA_BEARER_TOKEN = os.getenv("SUPERVISOR_TOKEN", "")
@@ -69,6 +74,15 @@ def notify_home_assistant(event_name: str, payload: dict) -> None:
         print(f"[ERROR] Impossibile inviare evento a Home Assistant: {e}", file=sys.stderr)
 
 
+def _enforce_file_cap(directory: Path, pattern: str, max_files: int) -> None:
+    """Mantiene al massimo `max_files` file corrispondenti a `pattern` nella
+    directory, eliminando i più vecchi (per mtime) in eccesso."""
+    saved_files = sorted(Path(directory).glob(pattern), key=os.path.getmtime)
+    if len(saved_files) > max_files:
+        for old_file in saved_files[:-max_files]:
+            old_file.unlink(missing_ok=True)
+
+
 def archive_unknown_face(snapshot_file: Path) -> None:
     """Archivia lo snapshot del volto sconosciuto per l'apprendimento futuro."""
     if not SAVE_UNKNOWN_FACES:
@@ -82,10 +96,7 @@ def archive_unknown_face(snapshot_file: Path) -> None:
 
     try:
         shutil.copy(snapshot_file, dest_file)
-        saved_files = sorted(unknown_dir.glob("unknown_*.jpg"), key=os.path.getmtime)
-        if len(saved_files) > MAX_SAVED_FACES:
-            for old_file in saved_files[:-MAX_SAVED_FACES]:
-                old_file.unlink(missing_ok=True)
+        _enforce_file_cap(unknown_dir, "unknown_*.jpg", MAX_SAVED_FACES)
     except Exception as e:
         print(f"[ERROR] Errore durante l'archiviazione dello snapshot: {e}", file=sys.stderr)
 
@@ -103,17 +114,93 @@ def archive_unknown_frame(frame: np.ndarray) -> None:
 
     try:
         cv2.imwrite(str(dest_file), frame)
-        saved_files = sorted(unknown_dir.glob("unknown_*.jpg"), key=os.path.getmtime)
-        if len(saved_files) > MAX_SAVED_FACES:
-            for old_file in saved_files[:-MAX_SAVED_FACES]:
-                old_file.unlink(missing_ok=True)
+        _enforce_file_cap(unknown_dir, "unknown_*.jpg", MAX_SAVED_FACES)
     except Exception as e:
         print(f"[ERROR] Errore durante l'archiviazione del frame sconosciuto: {e}", file=sys.stderr)
+
+
+def _unknown_face_files() -> list:
+    """Ritorna i file volto sconosciuto in attesa (esclusa learned/), dal più vecchio."""
+    unknown_dir = Path(UNKNOWN_FACES_DIR)
+    if not unknown_dir.is_dir():
+        return []
+    return sorted(unknown_dir.glob("unknown_*.jpg"), key=os.path.getmtime)
+
+
+def _refresh_current_pending_pointer(current_file) -> None:
+    """Copia il file corrente della coda nel percorso web-accessibile fisso,
+    o lo rimuove se la coda è vuota."""
+    pointer_path = Path(CURRENT_PENDING_FACE_PATH)
+    try:
+        pointer_path.parent.mkdir(parents=True, exist_ok=True)
+        if current_file is not None:
+            shutil.copy(current_file, pointer_path)
+        else:
+            pointer_path.unlink(missing_ok=True)
+    except (OSError, IOError):
+        # If the directory cannot be created (e.g., /config is read-only in tests),
+        # silently skip this step
+        pass
+
+
+def _queue_state() -> dict:
+    """Calcola lo stato corrente della coda FIFO dei volti sconosciuti."""
+    files = _unknown_face_files()
+    if not files:
+        _refresh_current_pending_pointer(None)
+        return {
+            "pending_count": 0,
+            "current_filename": None,
+            "current_path": None,
+            "image_url": None,
+        }
+
+    current_file = files[0]
+    _refresh_current_pending_pointer(current_file)
+    return {
+        "pending_count": len(files),
+        "current_filename": current_file.name,
+        "current_path": str(current_file),
+        "image_url": CURRENT_PENDING_FACE_URL,
+    }
 
 
 @app.route("/health", methods=["GET"])
 def health():
     return jsonify({"status": "ok"})
+
+
+@app.route("/unknown_faces/queue", methods=["GET"])
+def unknown_faces_queue():
+    return jsonify(_queue_state())
+
+
+@app.route("/unknown_faces/skip", methods=["POST"])
+def unknown_faces_skip():
+    files = _unknown_face_files()
+    if not files:
+        return jsonify({"error": "no pending unknown faces"}), 404
+
+    current_file = files[0]
+    # Send this file to the back of the FIFO queue. Using max(existing mtimes) + 1
+    # (rather than time.time()) guarantees it becomes the newest regardless of how
+    # other files' mtimes were set (e.g. clock skew, or synthetic future timestamps
+    # in tests), so "skip" always requeues for later review rather than looping.
+    newest_mtime = max(f.stat().st_mtime for f in files)
+    new_mtime = max(newest_mtime + 1, time.time())
+    os.utime(current_file, (new_mtime, new_mtime))
+    return jsonify(_queue_state())
+
+
+@app.route("/unknown_faces/discard", methods=["POST"])
+def unknown_faces_discard():
+    files = _unknown_face_files()
+    if not files:
+        return jsonify({"error": "no pending unknown faces"}), 404
+
+    current_file = files[0]
+    current_file.unlink(missing_ok=True)
+    return jsonify(_queue_state())
 
 
 @app.route("/analyze", methods=["POST"])
@@ -286,6 +373,7 @@ def learn():
     processed_dir.mkdir(parents=True, exist_ok=True)
     try:
         shutil.move(str(image_file), str(processed_dir / f"{identity_name}_{image_file.name}"))
+        _enforce_file_cap(processed_dir, "*.jpg", MAX_SAVED_FACES)
     except Exception as e:
         print(f"[WARNING] Impossibile archiviare la foto sorgente: {e}", file=sys.stderr)
 
