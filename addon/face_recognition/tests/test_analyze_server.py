@@ -303,7 +303,7 @@ def test_unknown_faces_skip_empty_queue_returns_404(client):
     test_client, _ = client
     response = test_client.post("/unknown_faces/skip")
     assert response.status_code == 404
-    assert "error" in response.get_json()
+    assert response.get_json() == {"error": "no pending unknown faces"}
 
 
 def test_unknown_faces_skip_moves_current_to_back_of_queue(client):
@@ -317,6 +317,8 @@ def test_unknown_faces_skip_moves_current_to_back_of_queue(client):
 
     assert data["pending_count"] == 2
     assert data["current_filename"] == "unknown_newer.jpg"
+    assert data["current_path"] == str(unknown_dir / "unknown_newer.jpg")
+    assert data["image_url"]
     # Il file "skippato" deve esistere ancora (non viene cancellato)
     assert older.is_file()
 
@@ -325,7 +327,7 @@ def test_unknown_faces_discard_empty_queue_returns_404(client):
     test_client, _ = client
     response = test_client.post("/unknown_faces/discard")
     assert response.status_code == 404
-    assert "error" in response.get_json()
+    assert response.get_json() == {"error": "no pending unknown faces"}
 
 
 def test_unknown_faces_discard_deletes_current_file(client):
@@ -339,6 +341,8 @@ def test_unknown_faces_discard_deletes_current_file(client):
 
     assert data["pending_count"] == 1
     assert data["current_filename"] == "unknown_newer.jpg"
+    assert data["current_path"] == str(unknown_dir / "unknown_newer.jpg")
+    assert data["image_url"]
     assert not older.is_file()
 
 
@@ -362,7 +366,11 @@ def test_learn_enforces_cap_on_learned_dir(client, tmp_path, monkeypatch):
         )
 
     assert response.status_code == 200
-    assert len(list(learned_dir.glob("*.jpg"))) == 2
+    remaining = sorted(p.name for p in learned_dir.glob("*.jpg"))
+    assert len(remaining) == 2
+    # existing_0.jpg has the oldest mtime and must be the one evicted by the cap.
+    assert "existing_0.jpg" not in remaining
+    assert "existing_1.jpg" in remaining
 
 
 
@@ -372,6 +380,7 @@ def client(monkeypatch, tmp_path):
     (evita di caricare il vero modello InsightFace nei test unitari)."""
     monkeypatch.setenv("EMBEDDINGS_DIR", str(tmp_path / "embeddings"))
     monkeypatch.setenv("UNKNOWN_FACES_DIR", str(tmp_path / "unknown_faces"))
+    monkeypatch.setenv("CURRENT_PENDING_FACE_PATH", str(tmp_path / "current_pending_face.jpg"))
 
     with patch("recognition.FaceRecognitionEngine") as mock_engine_cls:
         mock_engine = MagicMock()
