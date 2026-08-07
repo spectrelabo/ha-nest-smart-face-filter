@@ -1,6 +1,11 @@
 ARG BUILD_FROM
 FROM $BUILD_FROM
 
+# Disabilita il buffering di stdout/stderr di Python: senza questo, i print()
+# restano bloccati in un buffer interno e non compaiono nei log dell'add-on
+# finché il processo non termina (stdout non è un TTY dentro il container).
+ENV PYTHONUNBUFFERED=1
+
 # Dipendenze native richieste da opencv-python-headless e Python stesso
 # (immagine base-debian non include Python preinstallato, a differenza di base-python)
 RUN apt-get update && apt-get install -y --no-install-recommends \
