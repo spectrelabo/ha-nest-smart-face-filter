@@ -1,5 +1,5 @@
 name: "Face Recognition"
-version: "1.1.0"
+version: "1.2.0"
 slug: "face_recognition"
 description: "Riconoscimento facciale locale (InsightFace) per ha-nest-smart-face-filter"
 url: "https://github.com/spectrelabo/ha-nest-smart-face-filter"
