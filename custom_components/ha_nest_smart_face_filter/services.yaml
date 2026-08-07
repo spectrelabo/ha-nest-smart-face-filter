@@ -46,7 +46,7 @@ analyze_event:
           max: 0.9
           step: 0.05
 
-
+learn_face:
   name: Learn Face
   description: Registra un nuovo volto noto a partire da un'immagine (es. uno snapshot archiviato in unknown_faces).
   fields:
@@ -64,3 +64,13 @@ analyze_event:
       required: true
       selector:
         text:
+
+skip_pending_face:
+  name: Skip Pending Face
+  description: Rimanda in fondo alla coda il volto sconosciuto corrente, da rivedere più tardi.
+  fields: {}
+
+discard_pending_face:
+  name: Discard Pending Face
+  description: Elimina definitivamente dalla coda il volto sconosciuto corrente.
+  fields: {}

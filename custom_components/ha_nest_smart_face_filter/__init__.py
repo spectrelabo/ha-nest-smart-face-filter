@@ -90,6 +90,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 result = await response.json()
                 if response.status == 200:
                     _LOGGER.info("Face learned: %s", result)
+                    await coordinator.async_request_refresh()
                 else:
                     _LOGGER.error("Learn face add-on returned error: %s", result)
         except KeyError as err:
@@ -124,9 +125,41 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         except Exception as err:
             _LOGGER.error("Failed to reach face recognition add-on at %s: %s", url, err)
 
+    async def handle_skip_pending_face(call: ServiceCall):
+        """Rimanda in fondo alla coda il volto sconosciuto corrente (da rivedere più tardi)."""
+        session = async_get_clientsession(hass)
+        url = f"{get_addon_host()}/unknown_faces/skip"
+        try:
+            async with session.post(url, timeout=aiohttp.ClientTimeout(total=15)) as response:
+                result = await response.json()
+                if response.status == 200:
+                    _LOGGER.info("Volto rimandato in coda: %s", result)
+                else:
+                    _LOGGER.warning("Add-on ha risposto con errore su skip: %s", result)
+        except Exception as err:
+            _LOGGER.error("Impossibile contattare l'add-on su %s: %s", url, err)
+        await coordinator.async_request_refresh()
+
+    async def handle_discard_pending_face(call: ServiceCall):
+        """Elimina definitivamente il volto sconosciuto corrente dalla coda."""
+        session = async_get_clientsession(hass)
+        url = f"{get_addon_host()}/unknown_faces/discard"
+        try:
+            async with session.post(url, timeout=aiohttp.ClientTimeout(total=15)) as response:
+                result = await response.json()
+                if response.status == 200:
+                    _LOGGER.info("Volto scartato dalla coda: %s", result)
+                else:
+                    _LOGGER.warning("Add-on ha risposto con errore su discard: %s", result)
+        except Exception as err:
+            _LOGGER.error("Impossibile contattare l'add-on su %s: %s", url, err)
+        await coordinator.async_request_refresh()
+
     hass.services.async_register(DOMAIN, "analyze_snapshot", handle_analyze_snapshot)
     hass.services.async_register(DOMAIN, "analyze_event", handle_analyze_event)
     hass.services.async_register(DOMAIN, "learn_face", handle_learn_face)
+    hass.services.async_register(DOMAIN, "skip_pending_face", handle_skip_pending_face)
+    hass.services.async_register(DOMAIN, "discard_pending_face", handle_discard_pending_face)
     entry.async_on_unload(entry.add_update_listener(_async_update_listener))
     await hass.config_entries.async_forward_entry_setups(entry, ["sensor"])
     return True
