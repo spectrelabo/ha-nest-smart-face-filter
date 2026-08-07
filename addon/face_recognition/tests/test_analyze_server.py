@@ -315,10 +315,12 @@ def test_unknown_faces_skip_moves_current_to_back_of_queue(client):
     response = test_client.post("/unknown_faces/skip")
     data = response.get_json()
 
-    assert data["pending_count"] == 2
-    assert data["current_filename"] == "unknown_newer.jpg"
-    assert data["current_path"] == str(unknown_dir / "unknown_newer.jpg")
-    assert data["image_url"]
+    assert data == {
+        "pending_count": 2,
+        "current_filename": "unknown_newer.jpg",
+        "current_path": str(unknown_dir / "unknown_newer.jpg"),
+        "image_url": "/local/snapshots/current_pending_face.jpg",
+    }
     # Il file "skippato" deve esistere ancora (non viene cancellato)
     assert older.is_file()
 
@@ -339,10 +341,12 @@ def test_unknown_faces_discard_deletes_current_file(client):
     response = test_client.post("/unknown_faces/discard")
     data = response.get_json()
 
-    assert data["pending_count"] == 1
-    assert data["current_filename"] == "unknown_newer.jpg"
-    assert data["current_path"] == str(unknown_dir / "unknown_newer.jpg")
-    assert data["image_url"]
+    assert data == {
+        "pending_count": 1,
+        "current_filename": "unknown_newer.jpg",
+        "current_path": str(unknown_dir / "unknown_newer.jpg"),
+        "image_url": "/local/snapshots/current_pending_face.jpg",
+    }
     assert not older.is_file()
 
 
