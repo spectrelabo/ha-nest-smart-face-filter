@@ -88,7 +88,36 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             _LOGGER.error("Missing required field for learn_face service call: %s", err)
         except Exception as err:
             _LOGGER.error("Failed to reach face recognition add-on at %s: %s", url, err)
+    async def handle_analyze_event(call: ServiceCall):
+        """Service handler to trigger face recognition on a Nest event clip via the add-on."""
+        config = get_config()
+        session = async_get_clientsession(hass)
+        url = f"{get_addon_host()}/analyze_event"
+        try:
+            device_id = call.data["device_id"]
+            event_id = call.data["event_id"]
+            threshold = call.data.get("threshold", config.get(CONF_THRESHOLD, DEFAULT_THRESHOLD))
+            _LOGGER.info(
+                "Analyzing Nest event via add-on: device=%s event=%s threshold=%s",
+                device_id, event_id, threshold,
+            )
+            async with session.post(
+                url,
+                json={"device_id": device_id, "event_id": event_id, "threshold": threshold},
+                timeout=aiohttp.ClientTimeout(total=30),
+            ) as response:
+                result = await response.json()
+                if response.status == 200:
+                    _LOGGER.info("Nest event face recognition completed: %s", result)
+                else:
+                    _LOGGER.error("Face recognition add-on returned error for analyze_event: %s", result)
+        except KeyError as err:
+            _LOGGER.error("Missing required field for analyze_event service call: %s", err)
+        except Exception as err:
+            _LOGGER.error("Failed to reach face recognition add-on at %s: %s", url, err)
+
     hass.services.async_register(DOMAIN, "analyze_snapshot", handle_analyze_snapshot)
+    hass.services.async_register(DOMAIN, "analyze_event", handle_analyze_event)
     hass.services.async_register(DOMAIN, "learn_face", handle_learn_face)
     entry.async_on_unload(entry.add_update_listener(_async_update_listener))
     return True
