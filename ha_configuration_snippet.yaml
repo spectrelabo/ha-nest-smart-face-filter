@@ -14,29 +14,37 @@ input_text:
     icon: mdi:account-plus
 
 # ------------------------------------------------------------------------------
-# 2. AUTOMATION: Trigger Telecamera Nest + Snapshot + Riconoscimento
+# 2. AUTOMATION: Trigger Telecamera Nest + Riconoscimento via Event Media
 # ------------------------------------------------------------------------------
+# NOTA: Questo approccio usa i trigger "device" di Nest e il nuovo servizio
+# ha_nest_smart_face_filter.analyze_event (che recupera il clip MP4 dell'evento
+# via /api/nest/event_media), invece di camera.snapshot.
+# camera.snapshot su molte telecamere Nest restituisce frame neri/inutilizzabili
+# perché richiede uno stream WebRTC attivo — vedi:
+# https://github.com/home-assistant/core/issues/81ocalhost (problema noto HA/Nest).
 automation:
   - id: nest_camera_face_recognition_pipeline
-    alias: "Nest Camera - Pipeline Riconoscimento Facciale Leggera"
-    description: "Cattura uno snapshot quando la telecamera Nest rileva una persona ed esegue l'analisi."
+    alias: "Nest Camera - Pipeline Riconoscimento Facciale (Event-Based)"
+    description: >-
+      Analizza l'evento Nest (persona/movimento) usando il clip video
+      dell'evento invece di camera.snapshot (che su molte telecamere Nest
+      restituisce frame neri/inutilizzabili).
     mode: single
     max_exceeded: silent
     trigger:
-      - platform: state
-        entity_id: event.campanello_porta_principale_motion
-      - platform: state
-        entity_id: event.campanello_porta_principale_chime
+      - platform: device
+        device_id: "IL_TUO_DEVICE_ID_QUI"  # Impostazioni > Dispositivi e servizi > Dispositivi > <tuo campanello> > controlla l'URL
+        domain: nest
+        type: camera_person
+      - platform: device
+        device_id: "IL_TUO_DEVICE_ID_QUI"
+        domain: nest
+        type: camera_motion
     action:
-      - delay:
-          seconds: 3
-      - service: camera.snapshot
-        target:
-          entity_id: camera.campanello_porta_principale
+      - service: ha_nest_smart_face_filter.analyze_event
         data:
-          filename: "/config/www/last_person.jpg"
-      
-      - service: ha_nest_smart_face_filter.analyze_snapshot
+          device_id: "{{ trigger.event.data.device_id }}"
+          event_id: "{{ trigger.event.data.nest_event_id }}"
 
 # ------------------------------------------------------------------------------
 # 4. NOTIFICA AZIONABILE: Notifica Persona Sconosciuta con Pulsanti di Validazione

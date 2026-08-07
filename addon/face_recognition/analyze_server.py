@@ -23,6 +23,8 @@ from recognition import (
     crop_best_face,
     load_known_embeddings,
     cosine_similarity,
+    extract_frames_from_video,
+    analyze_frames_for_best_match,
 )
 
 EMBEDDINGS_DIR = os.getenv("EMBEDDINGS_DIR", "/config/face_recognition/embeddings")
@@ -86,6 +88,27 @@ def archive_unknown_face(snapshot_file: Path) -> None:
                 old_file.unlink(missing_ok=True)
     except Exception as e:
         print(f"[ERROR] Errore durante l'archiviazione dello snapshot: {e}", file=sys.stderr)
+
+
+def archive_unknown_frame(frame: np.ndarray) -> None:
+    """Archivia un frame numpy come immagine del volto sconosciuto per l'apprendimento futuro."""
+    if not SAVE_UNKNOWN_FACES:
+        return
+
+    unknown_dir = Path(UNKNOWN_FACES_DIR)
+    unknown_dir.mkdir(parents=True, exist_ok=True)
+
+    timestamp_str = datetime.now().strftime("%Y%m%d_%H%M%S")
+    dest_file = unknown_dir / f"unknown_{timestamp_str}.jpg"
+
+    try:
+        cv2.imwrite(str(dest_file), frame)
+        saved_files = sorted(unknown_dir.glob("unknown_*.jpg"), key=os.path.getmtime)
+        if len(saved_files) > MAX_SAVED_FACES:
+            for old_file in saved_files[:-MAX_SAVED_FACES]:
+                old_file.unlink(missing_ok=True)
+    except Exception as e:
+        print(f"[ERROR] Errore durante l'archiviazione del frame sconosciuto: {e}", file=sys.stderr)
 
 
 @app.route("/health", methods=["GET"])
@@ -153,6 +176,78 @@ def analyze():
             "score": round(best_score, 4),
             "threshold": threshold,
             "snapshot_path": str(snapshot_file),
+            "face_crop_path": "/local/snapshots/last_face_crop.jpg",
+        })
+
+    return jsonify({"identity": best_identity, "score": round(best_score, 4), "matched": matched})
+
+
+@app.route("/analyze_event", methods=["POST"])
+def analyze_event():
+    """Analizza un evento Nest estraendo e processando tutti i frame del clip video."""
+    data = request.get_json(silent=True) or {}
+    device_id = data.get("device_id")
+    event_id = data.get("event_id")
+    threshold = float(data.get("threshold", THRESHOLD))
+
+    if not device_id or not event_id:
+        return jsonify({"error": "device_id and event_id are required"}), 400
+
+    if not HA_BEARER_TOKEN:
+        return jsonify({"error": "SUPERVISOR_TOKEN not available, cannot fetch Nest event media"}), 400
+
+    url = f"{HA_BASE_URL}/api/nest/event_media/{device_id}/{event_id}"
+    try:
+        response = requests.get(
+            url,
+            headers={"Authorization": f"Bearer {HA_BEARER_TOKEN}"},
+            timeout=15,
+        )
+    except Exception as e:
+        return jsonify({"error": f"failed to fetch Nest event media: {e}"}), 502
+
+    if response.status_code != 200:
+        return jsonify({"error": f"failed to fetch Nest event media: HTTP {response.status_code}"}), 502
+
+    frames = extract_frames_from_video(response.content)
+    if not frames:
+        return jsonify({"error": "no frames could be decoded from event clip"}), 400
+
+    known_faces = load_known_embeddings(Path(EMBEDDINGS_DIR))
+    result = analyze_frames_for_best_match(get_engine(), frames, known_faces)
+
+    if result["frame"] is None:
+        notify_home_assistant("no_face_detected", {
+            "device_id": device_id,
+            "event_id": event_id,
+            "message": "Persona rilevata da Nest ma nessun volto estraibile dal clip evento.",
+        })
+        return jsonify({"identity": None, "score": -1.0, "matched": False})
+
+    crop_img = crop_best_face(result["frame"], result["faces"])
+    Path(CROP_OUTPUT_PATH).parent.mkdir(parents=True, exist_ok=True)
+    cv2.imwrite(CROP_OUTPUT_PATH, crop_img)
+
+    best_score = result["score"]
+    best_identity = result["identity"]
+    matched = best_score >= threshold
+
+    if matched:
+        notify_home_assistant("known_person_detected", {
+            "identity": best_identity,
+            "confidence": round(best_score, 4),
+            "device_id": device_id,
+            "event_id": event_id,
+            "face_crop_path": "/local/snapshots/last_face_crop.jpg",
+        })
+    else:
+        archive_unknown_frame(result["frame"])
+        notify_home_assistant("unknown_person_detected", {
+            "highest_match": best_identity if best_identity else "none",
+            "score": round(best_score, 4),
+            "threshold": threshold,
+            "device_id": device_id,
+            "event_id": event_id,
             "face_crop_path": "/local/snapshots/last_face_crop.jpg",
         })
 
