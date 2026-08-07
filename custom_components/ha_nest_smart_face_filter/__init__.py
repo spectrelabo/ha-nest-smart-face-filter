@@ -41,7 +41,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         hass, get_config().get(CONF_ADDON_HOST, DEFAULT_ADDON_HOST)
     )
     coordinator.config_entry = entry
-    await coordinator.async_config_entry_first_refresh()
 
     hass.data[DOMAIN][entry.entry_id] = {"coordinator": coordinator}
 
@@ -162,6 +161,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     hass.services.async_register(DOMAIN, "discard_pending_face", handle_discard_pending_face)
     entry.async_on_unload(entry.add_update_listener(_async_update_listener))
     await hass.config_entries.async_forward_entry_setups(entry, ["sensor"])
+    # Non-fatal: unlike async_config_entry_first_refresh(), async_refresh() does not
+    # raise ConfigEntryNotReady on failure. The add-on runs in a separate container
+    # and may not be reachable yet at HA startup; failing setup here would also
+    # deregister all 5 services above (which every automation depends on) until the
+    # add-on responds. The sensor simply shows unavailable until the next 60s poll
+    # succeeds, and the coordinator's own polling loop will pick it up from there.
+    await coordinator.async_refresh()
     return True
 
 

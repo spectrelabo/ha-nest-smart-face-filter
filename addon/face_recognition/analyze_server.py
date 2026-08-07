@@ -134,7 +134,13 @@ def _refresh_current_pending_pointer(current_file) -> None:
     try:
         pointer_path.parent.mkdir(parents=True, exist_ok=True)
         if current_file is not None:
-            shutil.copy(current_file, pointer_path)
+            # Copy-then-rename (os.replace is atomic on POSIX) instead of copying
+            # directly onto the shared pointer path, so concurrent requests (this
+            # GET is polled every 60s by the HA coordinator, and is also reached
+            # from /skip and /discard) can never observe a partially-written file.
+            tmp_path = pointer_path.with_suffix(pointer_path.suffix + ".tmp")
+            shutil.copy(current_file, tmp_path)
+            os.replace(tmp_path, pointer_path)
         else:
             pointer_path.unlink(missing_ok=True)
     except (OSError, IOError):
@@ -182,13 +188,19 @@ def unknown_faces_skip():
         return jsonify({"error": "no pending unknown faces"}), 404
 
     current_file = files[0]
-    # Send this file to the back of the FIFO queue. Using max(existing mtimes) + 1
-    # (rather than time.time()) guarantees it becomes the newest regardless of how
-    # other files' mtimes were set (e.g. clock skew, or synthetic future timestamps
-    # in tests), so "skip" always requeues for later review rather than looping.
-    newest_mtime = max(f.stat().st_mtime for f in files)
-    new_mtime = max(newest_mtime + 1, time.time())
-    os.utime(current_file, (new_mtime, new_mtime))
+    try:
+        # Send this file to the back of the FIFO queue. Using max(existing mtimes) + 1
+        # (rather than time.time()) guarantees it becomes the newest regardless of how
+        # other files' mtimes were set (e.g. clock skew, or synthetic future timestamps
+        # in tests), so "skip" always requeues for later review rather than looping.
+        newest_mtime = max(f.stat().st_mtime for f in files)
+        new_mtime = max(newest_mtime + 1, time.time())
+        os.utime(current_file, (new_mtime, new_mtime))
+    except FileNotFoundError:
+        # Concurrent request (e.g. /discard) removed this exact file between our
+        # listing and acting on it. The queue moved on without us; just report its
+        # current state rather than 500ing.
+        pass
     return jsonify(_queue_state())
 
 
