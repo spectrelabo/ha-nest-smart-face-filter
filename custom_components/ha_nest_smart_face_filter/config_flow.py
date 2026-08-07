@@ -64,14 +64,17 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     @staticmethod
     @callback
     def async_get_options_flow(config_entry):
-        return OptionsFlowHandler(config_entry)
+        return OptionsFlowHandler()
 
 
 class OptionsFlowHandler(config_entries.OptionsFlow):
     """Handle options flow for HA Nest Smart Face Filter."""
 
-    def __init__(self, config_entry: config_entries.ConfigEntry) -> None:
-        self.config_entry = config_entry
+    # NOTE: don't store config_entry on self here. Since HA 2024.11,
+    # OptionsFlow.config_entry is a read-only property computed from
+    # self.hass/self.handler by the base class, so assigning to it in
+    # __init__ raises "AttributeError: property 'config_entry' has no
+    # setter". Use the inherited property instead (available after init).
 
     async def async_step_init(self, user_input=None):
         """Manage the options."""

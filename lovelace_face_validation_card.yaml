@@ -13,10 +13,14 @@ cards:
       type: vertical-stack
       title: "Validazione Volto Rilevato"
       cards:
-        - type: picture
-          image: >-
-            {{ state_attr('sensor.nest_smart_face_filter_volti_in_attesa', 'image_url') }}?t={{ as_timestamp(states.sensor.nest_smart_face_filter_volti_in_attesa.last_changed) }}
-          title: "Anteprima Volto Rilevato"
+        # NOTA: la card nativa "type: picture" NON valuta template Jinja nel campo
+        # "image" (prende la stringa alla lettera) - usiamo "markdown" con un tag
+        # <img>, che supporta i template, per costruire l'URL dinamicamente.
+        - type: markdown
+          content: >-
+            ### Anteprima Volto Rilevato
+
+            <img src="{{ state_attr('sensor.nest_smart_face_filter_volti_in_attesa', 'image_url') }}?t={{ as_timestamp(states.sensor.nest_smart_face_filter_volti_in_attesa.last_changed) }}" style="width:100%;border-radius:8px;" />
 
         - type: markdown
           content: >-
