@@ -15,6 +15,7 @@ def client(monkeypatch, tmp_path):
     (evita di caricare il vero modello InsightFace nei test unitari)."""
     monkeypatch.setenv("EMBEDDINGS_DIR", str(tmp_path / "embeddings"))
     monkeypatch.setenv("UNKNOWN_FACES_DIR", str(tmp_path / "unknown_faces"))
+    monkeypatch.setenv("CURRENT_PENDING_FACE_PATH", str(tmp_path / "current_pending_face.jpg"))
 
     with patch("recognition.FaceRecognitionEngine") as mock_engine_cls:
         mock_engine = MagicMock()
@@ -225,6 +226,143 @@ def test_analyze_event_no_frames_decoded_returns_400(client):
 
     assert response.status_code == 400
     assert "no frames" in response.get_json().get("error", "")
+
+
+# ---------------------------------------------------------------------------
+# Tests for the unknown faces FIFO queue (/unknown_faces/queue, /skip, /discard)
+# ---------------------------------------------------------------------------
+
+def _write_fake_face(directory: Path, name: str, mtime_offset_seconds: float = 0) -> Path:
+    """Crea un file jpg fittizio con una mtime controllabile per testare l'ordine FIFO."""
+    directory.mkdir(parents=True, exist_ok=True)
+    file_path = directory / name
+    file_path.write_bytes(b"\xff\xd8\xff" + b"0" * 2000)
+    if mtime_offset_seconds:
+        current_time = os.path.getmtime(file_path)
+        new_time = current_time + mtime_offset_seconds
+        os.utime(file_path, (new_time, new_time))
+    return file_path
+
+
+def test_enforce_file_cap_removes_oldest_files_over_limit(client, tmp_path):
+    test_client, _ = client
+    import analyze_server
+
+    directory = tmp_path / "capped"
+    directory.mkdir()
+    for i in range(5):
+        _write_fake_face(directory, f"unknown_{i}.jpg", mtime_offset_seconds=i)
+
+    analyze_server._enforce_file_cap(directory, "unknown_*.jpg", max_files=3)
+
+    remaining = sorted(p.name for p in directory.glob("unknown_*.jpg"))
+    assert remaining == ["unknown_2.jpg", "unknown_3.jpg", "unknown_4.jpg"]
+
+
+def test_enforce_file_cap_noop_when_under_limit(client, tmp_path):
+    test_client, _ = client
+    import analyze_server
+
+    directory = tmp_path / "capped"
+    directory.mkdir()
+    _write_fake_face(directory, "unknown_0.jpg")
+
+    analyze_server._enforce_file_cap(directory, "unknown_*.jpg", max_files=30)
+
+    assert len(list(directory.glob("unknown_*.jpg"))) == 1
+
+
+def test_unknown_faces_queue_empty_returns_zero_count(client):
+    test_client, _ = client
+    response = test_client.get("/unknown_faces/queue")
+    assert response.status_code == 200
+    assert response.get_json() == {
+        "pending_count": 0,
+        "current_filename": None,
+        "current_path": None,
+        "image_url": None,
+    }
+
+
+def test_unknown_faces_queue_returns_oldest_file_as_current(client, tmp_path):
+    test_client, _ = client
+    unknown_dir = Path(os.environ["UNKNOWN_FACES_DIR"])
+    older = _write_fake_face(unknown_dir, "unknown_older.jpg", mtime_offset_seconds=0)
+    _write_fake_face(unknown_dir, "unknown_newer.jpg", mtime_offset_seconds=100)
+
+    response = test_client.get("/unknown_faces/queue")
+    data = response.get_json()
+
+    assert data["pending_count"] == 2
+    assert data["current_filename"] == "unknown_older.jpg"
+    assert data["current_path"] == str(older)
+    assert data["image_url"] == "/local/snapshots/current_pending_face.jpg"
+
+
+def test_unknown_faces_skip_empty_queue_returns_404(client):
+    test_client, _ = client
+    response = test_client.post("/unknown_faces/skip")
+    assert response.status_code == 404
+    assert "error" in response.get_json()
+
+
+def test_unknown_faces_skip_moves_current_to_back_of_queue(client):
+    test_client, _ = client
+    unknown_dir = Path(os.environ["UNKNOWN_FACES_DIR"])
+    older = _write_fake_face(unknown_dir, "unknown_older.jpg", mtime_offset_seconds=0)
+    _write_fake_face(unknown_dir, "unknown_newer.jpg", mtime_offset_seconds=100)
+
+    response = test_client.post("/unknown_faces/skip")
+    data = response.get_json()
+
+    assert data["pending_count"] == 2
+    assert data["current_filename"] == "unknown_newer.jpg"
+    # Il file "skippato" deve esistere ancora (non viene cancellato)
+    assert older.is_file()
+
+
+def test_unknown_faces_discard_empty_queue_returns_404(client):
+    test_client, _ = client
+    response = test_client.post("/unknown_faces/discard")
+    assert response.status_code == 404
+    assert "error" in response.get_json()
+
+
+def test_unknown_faces_discard_deletes_current_file(client):
+    test_client, _ = client
+    unknown_dir = Path(os.environ["UNKNOWN_FACES_DIR"])
+    older = _write_fake_face(unknown_dir, "unknown_older.jpg", mtime_offset_seconds=0)
+    _write_fake_face(unknown_dir, "unknown_newer.jpg", mtime_offset_seconds=100)
+
+    response = test_client.post("/unknown_faces/discard")
+    data = response.get_json()
+
+    assert data["pending_count"] == 1
+    assert data["current_filename"] == "unknown_newer.jpg"
+    assert not older.is_file()
+
+
+def test_learn_enforces_cap_on_learned_dir(client, tmp_path, monkeypatch):
+    test_client, mock_engine = client
+    monkeypatch.setattr("analyze_server.MAX_SAVED_FACES", 2)
+
+    unknown_dir = Path(os.environ["UNKNOWN_FACES_DIR"])
+    learned_dir = unknown_dir / "learned"
+    learned_dir.mkdir(parents=True, exist_ok=True)
+    for i in range(2):
+        _write_fake_face(learned_dir, f"existing_{i}.jpg", mtime_offset_seconds=i)
+
+    fake_image = tmp_path / "unknown_new.jpg"
+    fake_image.write_bytes(b"\xff\xd8\xff" + b"0" * 2000)
+    mock_engine.extract_best_embedding.return_value = np.array([1.0, 0.0, 0.0])
+
+    with patch("analyze_server.cv2.imread", return_value=np.zeros((10, 10, 3), dtype=np.uint8)):
+        response = test_client.post(
+            "/learn", json={"image_path": str(fake_image), "name": "Mario Rossi"}
+        )
+
+    assert response.status_code == 200
+    assert len(list(learned_dir.glob("*.jpg"))) == 2
 
 
 
