@@ -19,6 +19,7 @@ from .const import (
     DEFAULT_SNAPSHOT_PATH,
     DEFAULT_THRESHOLD,
 )
+from .sensor import PendingFacesCoordinator
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -31,11 +32,18 @@ async def _async_update_listener(hass: HomeAssistant, entry: ConfigEntry) -> Non
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up HA Nest Smart Face Filter from a config entry."""
     hass.data.setdefault(DOMAIN, {})
-    hass.data[DOMAIN][entry.entry_id] = entry.data
 
     def get_config() -> dict:
         """Merge config entry data with any options-flow overrides (options win)."""
         return {**entry.data, **entry.options}
+
+    coordinator = PendingFacesCoordinator(
+        hass, get_config().get(CONF_ADDON_HOST, DEFAULT_ADDON_HOST)
+    )
+    coordinator.config_entry = entry
+    await coordinator.async_config_entry_first_refresh()
+
+    hass.data[DOMAIN][entry.entry_id] = {"coordinator": coordinator}
 
     def get_addon_host() -> str:
         return get_config().get(CONF_ADDON_HOST, DEFAULT_ADDON_HOST)
@@ -120,10 +128,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     hass.services.async_register(DOMAIN, "analyze_event", handle_analyze_event)
     hass.services.async_register(DOMAIN, "learn_face", handle_learn_face)
     entry.async_on_unload(entry.add_update_listener(_async_update_listener))
+    await hass.config_entries.async_forward_entry_setups(entry, ["sensor"])
     return True
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload a config entry."""
-    hass.data[DOMAIN].pop(entry.entry_id, None)
-    return True
+    unloaded = await hass.config_entries.async_unload_platforms(entry, ["sensor"])
+    if unloaded:
+        hass.data[DOMAIN].pop(entry.entry_id, None)
+    return unloaded
