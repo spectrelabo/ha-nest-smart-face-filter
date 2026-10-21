@@ -77,8 +77,11 @@ class PendingFacesSensor(CoordinatorEntity, SensorEntity):
     @property
     def extra_state_attributes(self):
         data = self.coordinator.data or {}
+        entry_id = self.coordinator.config_entry.entry_id
         return {
             "current_filename": data.get("current_filename"),
             "current_path": data.get("current_path"),
-            "image_url": data.get("image_url"),
+            # Use the authenticated image entity instead of a bare /local/ URL.
+            # Access via /api/image_proxy/image.<entity_slug> requires a valid HA session.
+            "image_entity_id": f"image.{self._attr_unique_id.replace(entry_id + '_', '', 1).replace('_pending_faces', '_pending_face_image')}",
         }

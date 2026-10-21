@@ -6,6 +6,7 @@ import logging
 import aiohttp
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, ServiceCall
+from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from .const import (
@@ -58,6 +59,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             "threshold", config.get(CONF_THRESHOLD, DEFAULT_THRESHOLD)
         )
 
+        if not hass.config.is_allowed_path(snapshot):
+            raise ServiceValidationError(
+                f"Access to path '{snapshot}' is not allowed. "
+                "Add the directory to allowlist_external_dirs in your Home Assistant configuration."
+            )
+
         _LOGGER.info("Analyzing snapshot via add-on: %s (threshold: %s)", snapshot, threshold)
 
         session = async_get_clientsession(hass)
@@ -78,11 +85,18 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     async def handle_learn_face(call: ServiceCall):
         """Service handler to register a new known face via the add-on."""
+        image_path = call.data["image_path"]
+        name = call.data["name"]
+
+        if not hass.config.is_allowed_path(image_path):
+            raise ServiceValidationError(
+                f"Access to path '{image_path}' is not allowed. "
+                "Add the directory to allowlist_external_dirs in your Home Assistant configuration."
+            )
+
         session = async_get_clientsession(hass)
         url = f"{get_addon_host()}/learn"
         try:
-            image_path = call.data["image_path"]
-            name = call.data["name"]
             async with session.post(
                 url, json={"image_path": image_path, "name": name}, timeout=aiohttp.ClientTimeout(total=30)
             ) as response:
@@ -92,8 +106,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                     await coordinator.async_request_refresh()
                 else:
                     _LOGGER.error("Learn face add-on returned error: %s", result)
-        except KeyError as err:
-            _LOGGER.error("Missing required field for learn_face service call: %s", err)
         except Exception as err:
             _LOGGER.error("Failed to reach face recognition add-on at %s: %s", url, err)
     async def handle_analyze_event(call: ServiceCall):
@@ -160,7 +172,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     hass.services.async_register(DOMAIN, "skip_pending_face", handle_skip_pending_face)
     hass.services.async_register(DOMAIN, "discard_pending_face", handle_discard_pending_face)
     entry.async_on_unload(entry.add_update_listener(_async_update_listener))
-    await hass.config_entries.async_forward_entry_setups(entry, ["sensor"])
+    await hass.config_entries.async_forward_entry_setups(entry, ["sensor", "image"])
     # Non-fatal: unlike async_config_entry_first_refresh(), async_refresh() does not
     # raise ConfigEntryNotReady on failure. The add-on runs in a separate container
     # and may not be reachable yet at HA startup; failing setup here would also
@@ -173,7 +185,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload a config entry."""
-    unloaded = await hass.config_entries.async_unload_platforms(entry, ["sensor"])
+    unloaded = await hass.config_entries.async_unload_platforms(entry, ["sensor", "image"])
     if unloaded:
         hass.data[DOMAIN].pop(entry.entry_id, None)
     return unloaded

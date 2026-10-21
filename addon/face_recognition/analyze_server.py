@@ -10,7 +10,6 @@ shell_command inside the Home Assistant Core container.
 import os
 import shutil
 import sys
-import threading
 import time
 from datetime import datetime
 from pathlib import Path
@@ -34,11 +33,6 @@ THRESHOLD = float(os.getenv("THRESHOLD", "0.45"))
 SAVE_UNKNOWN_FACES = os.getenv("SAVE_UNKNOWN_FACES", "true").lower() == "true"
 UNKNOWN_FACES_DIR = os.getenv("UNKNOWN_FACES_DIR", "/config/face_recognition/unknown_faces")
 MAX_SAVED_FACES = int(os.getenv("MAX_SAVED_FACES", "30"))
-CROP_OUTPUT_PATH = os.getenv("CROP_OUTPUT_PATH", "/config/www/snapshots/last_face_crop.jpg")
-CURRENT_PENDING_FACE_PATH = os.getenv(
-    "CURRENT_PENDING_FACE_PATH", "/config/www/snapshots/current_pending_face.jpg"
-)
-CURRENT_PENDING_FACE_URL = "/local/snapshots/current_pending_face.jpg"
 
 HA_BASE_URL = os.getenv("HA_BASE_URL", "http://supervisor/core")
 HA_BEARER_TOKEN = os.getenv("SUPERVISOR_TOKEN", "")
@@ -128,49 +122,22 @@ def _unknown_face_files() -> list:
     return sorted(unknown_dir.glob("unknown_*.jpg"), key=os.path.getmtime)
 
 
-def _refresh_current_pending_pointer(current_file) -> None:
-    """Copy the current queue file to the fixed web-accessible path,
-    or remove it if the queue is empty."""
-    pointer_path = Path(CURRENT_PENDING_FACE_PATH)
-    try:
-        pointer_path.parent.mkdir(parents=True, exist_ok=True)
-        if current_file is not None:
-            # Copy-then-rename (os.replace is atomic on POSIX) instead of copying
-            # directly onto the shared pointer path, so concurrent requests (this
-            # GET is polled every 60s by the HA coordinator, and is also reached
-            # from /skip and /discard) can never observe a partially-written file.
-            tmp_path = pointer_path.with_suffix(
-                pointer_path.suffix + f".{os.getpid()}.{threading.get_ident()}.tmp"
-            )
-            shutil.copy(current_file, tmp_path)
-            os.replace(tmp_path, pointer_path)
-        else:
-            pointer_path.unlink(missing_ok=True)
-    except (OSError, IOError):
-        # If the directory cannot be created (e.g., /config is read-only in tests),
-        # silently skip this step
-        pass
-
 
 def _queue_state() -> dict:
     """Compute the current state of the FIFO queue of unknown faces."""
     files = _unknown_face_files()
     if not files:
-        _refresh_current_pending_pointer(None)
         return {
             "pending_count": 0,
             "current_filename": None,
             "current_path": None,
-            "image_url": None,
         }
 
     current_file = files[0]
-    _refresh_current_pending_pointer(current_file)
     return {
         "pending_count": len(files),
         "current_filename": current_file.name,
         "current_path": str(current_file),
-        "image_url": CURRENT_PENDING_FACE_URL,
     }
 
 
@@ -217,6 +184,25 @@ def unknown_faces_discard():
     current_file.unlink(missing_ok=True)
     return jsonify(_queue_state())
 
+@app.route("/unknown_faces/image", methods=["GET"])
+def unknown_faces_image():
+    """Serve the current pending face image as JPEG bytes.
+
+    This endpoint is called exclusively by the HA integration's ImageEntity,
+    which proxies it behind HA authentication. No files are written to www/.
+    Returns 404 when the queue is empty.
+    """
+    from flask import Response
+    files = _unknown_face_files()
+    if not files:
+        return jsonify({"error": "no pending unknown faces"}), 404
+    current_file = files[0]
+    try:
+        image_bytes = current_file.read_bytes()
+        return Response(image_bytes, mimetype="image/jpeg")
+    except (OSError, IOError) as e:
+        return jsonify({"error": f"could not read image: {e}"}), 500
+
 
 @app.route("/analyze", methods=["POST"])
 def analyze():
@@ -250,8 +236,6 @@ def analyze():
         return jsonify({"identity": None, "score": -1.0, "matched": False})
 
     crop_img = crop_best_face(img, faces)
-    Path(CROP_OUTPUT_PATH).parent.mkdir(parents=True, exist_ok=True)
-    cv2.imwrite(CROP_OUTPUT_PATH, crop_img)
 
     best_identity = None
     best_score = -1.0
@@ -269,7 +253,6 @@ def analyze():
             "identity": best_identity,
             "confidence": round(best_score, 4),
             "snapshot_path": str(snapshot_file),
-            "face_crop_path": "/local/snapshots/last_face_crop.jpg",
         })
     else:
         archive_unknown_face(snapshot_file)
@@ -278,7 +261,6 @@ def analyze():
             "score": round(best_score, 4),
             "threshold": threshold,
             "snapshot_path": str(snapshot_file),
-            "face_crop_path": "/local/snapshots/last_face_crop.jpg",
         })
 
     return jsonify({"identity": best_identity, "score": round(best_score, 4), "matched": matched})
@@ -327,8 +309,6 @@ def analyze_event():
         return jsonify({"identity": None, "score": -1.0, "matched": False})
 
     crop_img = crop_best_face(result["frame"], result["faces"])
-    Path(CROP_OUTPUT_PATH).parent.mkdir(parents=True, exist_ok=True)
-    cv2.imwrite(CROP_OUTPUT_PATH, crop_img)
 
     best_score = result["score"]
     best_identity = result["identity"]
@@ -340,7 +320,6 @@ def analyze_event():
             "confidence": round(best_score, 4),
             "device_id": device_id,
             "event_id": event_id,
-            "face_crop_path": "/local/snapshots/last_face_crop.jpg",
         })
     else:
         archive_unknown_frame(result["frame"])
@@ -350,7 +329,6 @@ def analyze_event():
             "threshold": threshold,
             "device_id": device_id,
             "event_id": event_id,
-            "face_crop_path": "/local/snapshots/last_face_crop.jpg",
         })
 
     return jsonify({"identity": best_identity, "score": round(best_score, 4), "matched": matched})
