@@ -10,6 +10,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.update_coordinator import (
     CoordinatorEntity,
     DataUpdateCoordinator,
@@ -78,10 +79,13 @@ class PendingFacesSensor(CoordinatorEntity, SensorEntity):
     def extra_state_attributes(self):
         data = self.coordinator.data or {}
         entry_id = self.coordinator.config_entry.entry_id
+        # Look up the image entity through the registry so the entity_id is
+        # always correct regardless of how HA derives slugs from unique_ids.
+        image_entity_id = er.async_get(self.hass).async_get_entity_id(
+            "image", DOMAIN, f"{entry_id}_pending_face_image"
+        )
         return {
             "current_filename": data.get("current_filename"),
             "current_path": data.get("current_path"),
-            # Use the authenticated image entity instead of a bare /local/ URL.
-            # Access via /api/image_proxy/image.<entity_slug> requires a valid HA session.
-            "image_entity_id": f"image.{self._attr_unique_id.replace(entry_id + '_', '', 1).replace('_pending_faces', '_pending_face_image')}",
+            "image_entity_id": image_entity_id,
         }

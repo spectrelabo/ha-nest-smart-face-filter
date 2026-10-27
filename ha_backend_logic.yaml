@@ -18,7 +18,17 @@ script:
   conferma_gestione_volto:
     alias: "Confirm Face Registration"
     sequence:
-      # 1. Register the current queued face (path taken from the sensor, not hardcoded)
+      # 1. Register the current queued face (path taken from the sensor, not hardcoded).
+      #    IMPORTANT: the learn_face service validates the path with
+      #    hass.config.is_allowed_path(). The queue lives under
+      #    /config/face_recognition/unknown_faces/ by default, which is NOT in
+      #    HA's allowlist_external_dirs unless you add it.
+      #    Add this to configuration.yaml and restart HA:
+      #
+      #      homeassistant:
+      #        allowlist_external_dirs:
+      #          - /config/face_recognition/unknown_faces
+      #
       - service: ha_nest_smart_face_filter.learn_face
         data:
           image_path: >-

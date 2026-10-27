@@ -195,6 +195,23 @@ services registered directly by the integration — useful, but if you forget th
 script, "Confirm" will appear to "work" (no visible error) while never
 actually registering the face.
 
+### 7. Allow the unknown-faces directory (`allowlist_external_dirs`)
+
+The `learn_face` service validates every path with Home Assistant's
+`is_allowed_path()` check. The face queue lives under
+`/config/face_recognition/unknown_faces/` by default, which HA does **not**
+allow by default. Add the following block to `configuration.yaml` and restart
+Home Assistant:
+
+```yaml
+homeassistant:
+  allowlist_external_dirs:
+    - /config/face_recognition/unknown_faces
+```
+
+Without this step, pressing "Confirm" will raise a `ServiceValidationError`
+and the face will not be registered.
+
 After pasting, **restart Home Assistant** (mandatory if you add new
 top-level keys like `input_text:`/`script:` directly in `configuration.yaml`;
 if you already use `!include scripts.yaml`, a "Reload Scripts" from the
@@ -253,14 +270,17 @@ See point 6 above: you are almost certainly missing
 Settings → Automations & Scenes → Scripts that the script really exists.
 
 **The photo in the card is not visible / broken icon.**
-If you customized the card with `type: picture` and a templated URL, it will
-never work (see point 5). Use the `markdown` card provided in the repo.
+From v2.4.0 the face preview is served through an authenticated HA
+`image` entity (`image.<slug>_pending_face`). The Lovelace dashboard
+uses a `picture-entity` card — make sure the `entity:` field matches
+the actual entity_id shown in Settings → Devices & Services →
+your integration → Entities.
 
-**I tried opening `/local/...` manually and I get a timeout, not a 404.**
-Check whether you are going through a reverse proxy/external domain that only
-forwards port 443 — in that case the "internal" URL with explicit `:8123` is
-not reachable from outside. Use the same address (without the port) that you
-normally use to open the dashboard.
+**I tried opening `/local/...` manually and the file no longer exists.**
+Since v2.4.0 no face images are written to `/config/www/`. The pending
+face is served exclusively through the authenticated image entity
+(`/api/image_proxy/<entity_id>`), so it is no longer accessible without
+a valid Home Assistant session. This is intentional.
 
 **HACS does not find the update to a new version.**
 Try a forced refresh: HACS → your repository → menu ⋮ → "Redownload".
@@ -295,10 +315,17 @@ instance is needed.
   every 60 seconds to avoid hammering the add-on. After Confirm/Discard/Next
   the refresh is still immediate (direct coordinator call); the delay is only
   noticeable for a newly detected face that arrives passively.
-- **Lovelace `type: picture` does not support Jinja templates**: native
-  Home Assistant limitation, not our bug — use `markdown` with `<img>` as done
-  in the provided file, or a custom card such as `html-template-card` if you
-  need something fancier.
+- **Lovelace preview uses authenticated image entity**: from v2.4.0 the
+  face preview card uses `picture-entity` pointing at
+  `image.<slug>_pending_face` instead of an unauthenticated `/local/` URL.
+  If the card shows a broken icon, verify that the entity_id in
+  `lovelace_face_validation_card.yaml` matches your instance's actual
+  entity_id (Settings → Devices & Services → your integration → Entities).
+- **`learn_face` requires `allowlist_external_dirs`**: from v2.4.0 the
+  service validates every path with `is_allowed_path()`. Add
+  `/config/face_recognition/unknown_faces` to `allowlist_external_dirs`
+  in `configuration.yaml` (see Setup step 7 above) or "Confirm" will
+  raise a `ServiceValidationError`.
 - **`camera.snapshot` on Nest often returns black frames**: that is why
   the pipeline uses `analyze_event` (real event clip via
   `/api/nest/event_media`) instead of the live snapshot.

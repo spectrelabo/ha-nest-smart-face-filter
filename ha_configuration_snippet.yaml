@@ -62,7 +62,8 @@ automation:
           message: "An unknown face was detected on the camera. Do you want to register it among the known faces?"
           data:
             url: "/lovelace/face-recognition"
-            image: "/local/snapshots/current_pending_face.jpg"
+            image: >-
+              /api/image_proxy/{{ state_attr('sensor.nest_smart_face_filter_volti_in_attesa', 'image_entity_id') }}
             actions:
               - action: "LEARN_FACE_ACTION"
                 title: "👤 Register Face"

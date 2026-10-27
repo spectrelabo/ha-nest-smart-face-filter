@@ -13,14 +13,15 @@ cards:
       type: vertical-stack
       title: "Detected Face Validation"
       cards:
-        # NOTE: the native "type: picture" card does NOT evaluate Jinja templates in the
-        # "image" field (it takes the string literally) - we use "markdown" with an
-        # inline <img> tag, which supports templates, to build the URL dynamically.
-        - type: markdown
-          content: >-
-            ### Detected Face Preview
-
-            <img src="{{ state_attr('sensor.nest_smart_face_filter_volti_in_attesa', 'image_url') }}?t={{ as_timestamp(states.sensor.nest_smart_face_filter_volti_in_attesa.last_changed) }}" style="width:100%;border-radius:8px;" />
+        # The integration exposes a 'image.<slug>_pending_face_image' entity
+        # that proxies the current pending face through HA's authenticated image
+        # API. Use a picture-entity card to display it — no /local/ URL needed.
+        # Replace the entity_id below with the one shown in
+        # Settings → Devices & Services → your integration → Entities.
+        - type: picture-entity
+          entity: image.nest_smart_face_filter_pending_face
+          show_name: false
+          show_state: false
 
         - type: markdown
           content: >-
